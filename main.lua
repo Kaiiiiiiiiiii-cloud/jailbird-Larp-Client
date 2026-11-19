@@ -1,5 +1,4 @@
--- larp_client.lua · v1.5
--- terminal fix · theme system · coin trails · red/black main gui
+-- larp_client.lua · v1.6
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
@@ -14,6 +13,8 @@ local CONFIG_FILE = "larp_client_config.json"
 
 local function deepcopy(v) if type(v) ~= "table" then return v end local o = {} for k, vv in pairs(v) do o[k] = deepcopy(vv) end return o end
 local function arrToColor(a) return Color3.fromRGB(a[1] or 0, a[2] or 0, a[3] or 0) end
+local function trim_trailing(s) return (s:gsub("[ \t]+$", "")) end
+local function trim_ascii(art) local lines = {} for line in art:gmatch("[^\n]+") do table.insert(lines, trim_trailing(line)) end return table.concat(lines, "\n") end
 
 local defs = {
     {id="aimbot", tab="Combat", name="Aimbot", desc="Locks camera to nearest target. Hold RMB.", settings={{type="slider", id="fov", label="FOV (deg)", min=10, max=360, default=120},{type="slider", id="smooth", label="Smoothing", min=1, max=30, default=6},{type="slider", id="range", label="Max Range", min=50, max=2000, default=500}}},
@@ -40,18 +41,28 @@ local defs = {
 
 local function module_default(id) local d = {enabled=false, key=""} for _, def in ipairs(defs) do if def.id == id then for _, s in ipairs(def.settings or {}) do d[s.id] = deepcopy(s.default) end break end end return d end
 
-local config = {menu_key = "RightShift", accent = {200, 50, 50}, ui_scale = 1, notifications = true, theme = "terminal_red", title = "larp client", modules = {}}
+local config = {
+    menu_key = "RightShift", accent = {200, 50, 50}, ui_scale = 1, notifications = true,
+    theme = "terminal_red", title = "larp client", font_size = 12, corner_radius = 6,
+    transparency = 0, animations = true, modules = {}
+}
 local function get_state(id) if not config.modules[id] then config.modules[id] = module_default(id) end return config.modules[id] end
 do local i = 0 for _, def in ipairs(defs) do i += 1 local st = get_state(def.id) if st.key == "" then st.key = "F" .. i end end end
 
--- THEME PALETTES
 local THEMES = {
-    terminal_red  = {bg={8,4,4},     panel={20,10,10},   panel2={32,16,16},   panel3={42,22,22},   stroke={90,30,30},   text={240,200,200}, text_dim={160,90,90},  off={60,30,30},  accent={200,50,50}},
-    matrix_green  = {bg={2,8,2},     panel={8,20,8},     panel2={14,32,14},   panel3={20,42,20},   stroke={40,90,40},   text={200,240,200}, text_dim={80,150,80},  off={30,60,30},  accent={60,220,90}},
-    cyber_blue    = {bg={2,4,10},    panel={10,18,32},   panel2={16,28,48},   panel3={22,38,60},   stroke={40,80,140},  text={200,220,240}, text_dim={90,130,180}, off={30,45,70},  accent={60,180,255}},
-    ghost_purple  = {bg={6,2,10},    panel={20,10,30},   panel2={30,15,45},   panel3={42,22,60},   stroke={90,40,130},  text={220,200,240}, text_dim={140,100,180},off={50,30,70},  accent={170,100,255}},
-    monochrome    = {bg={10,10,10},  panel={20,20,20},   panel2={32,32,32},   panel3={42,42,42},   stroke={70,70,70},   text={240,240,240}, text_dim={140,140,140},off={50,50,50},  accent={220,220,220}},
-    void_black    = {bg={0,0,0},     panel={10,10,10},   panel2={18,18,18},   panel3={26,26,26},   stroke={40,40,40},   text={220,220,220}, text_dim={120,120,120},off={40,40,40},  accent={255,255,255}},
+    terminal_red    = {bg={8,4,4},     panel={20,10,10},   panel2={32,16,16},   panel3={42,22,22},   stroke={90,30,30},   text={240,200,200}, text_dim={160,90,90},  off={60,30,30},  accent={200,50,50}},
+    matrix_green    = {bg={2,8,2},     panel={8,20,8},     panel2={14,32,14},   panel3={20,42,20},   stroke={40,90,40},   text={200,240,200}, text_dim={80,150,80},  off={30,60,30},  accent={60,220,90}},
+    cyber_blue      = {bg={2,4,10},    panel={10,18,32},   panel2={16,28,48},   panel3={22,38,60},   stroke={40,80,140},  text={200,220,240}, text_dim={90,130,180}, off={30,45,70},  accent={60,180,255}},
+    ghost_purple    = {bg={6,2,10},    panel={20,10,30},   panel2={30,15,45},   panel3={42,22,60},   stroke={90,40,130},  text={220,200,240}, text_dim={140,100,180},off={50,30,70},  accent={170,100,255}},
+    monochrome      = {bg={10,10,10},  panel={20,20,20},   panel2={32,32,32},   panel3={42,42,42},   stroke={70,70,70},   text={240,240,240}, text_dim={140,140,140},off={50,50,50},  accent={220,220,220}},
+    void_black      = {bg={0,0,0},     panel={10,10,10},   panel2={18,18,18},   panel3={26,26,26},   stroke={40,40,40},   text={220,220,220}, text_dim={120,120,120},off={40,40,40},  accent={255,255,255}},
+    blood_moon      = {bg={10,2,2},    panel={24,8,8},     panel2={36,12,12},   panel3={48,18,18},   stroke={100,20,20},  text={255,220,220}, text_dim={200,100,100},off={60,20,20},  accent={255,30,30}},
+    ocean_deep      = {bg={0,4,8},     panel={8,16,26},    panel2={12,24,38},   panel3={18,34,50},   stroke={30,70,110},  text={200,240,255}, text_dim={80,140,180}, off={25,50,75},  accent={40,200,255}},
+    sunset_gold     = {bg={10,6,2},    panel={26,18,8},    panel2={40,28,12},   panel3={52,38,18},   stroke={110,80,30},  text={255,240,210}, text_dim={200,160,100},off={70,50,20},  accent={255,180,40}},
+    sakura_pink     = {bg={12,4,8},    panel={28,12,20},   panel2={42,20,32},   panel3={54,28,42},   stroke={120,50,80},  text={255,220,235}, text_dim={200,130,160},off={70,30,45},  accent={255,110,170}},
+    forest_dark     = {bg={4,8,4},     panel={12,20,12},   panel2={18,30,18},   panel3={26,40,26},   stroke={50,90,50},   text={220,240,220}, text_dim={120,160,120},off={40,60,40},  accent={120,220,80}},
+    retro_amber     = {bg={8,5,0},     panel={22,15,2},    panel2={35,25,5},    panel3={46,32,8},    stroke={120,80,20},  text={255,200,120}, text_dim={180,130,60}, off={60,40,10},  accent={255,150,20}},
+    neon_cyan       = {bg={0,4,6},     panel={5,20,26},    panel2={8,32,42},    panel3={12,44,58},   stroke={20,90,120},  text={200,255,255}, text_dim={60,180,200}, off={15,60,80},  accent={0,255,220}},
 }
 
 local C = {}
@@ -70,12 +81,9 @@ local function load_config()
     if not ok or not raw or raw == "" then return end
     local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
     if not ok2 or type(data) ~= "table" then return end
-    config.menu_key      = data.menu_key or config.menu_key
-    config.accent        = data.accent or config.accent
-    config.ui_scale      = data.ui_scale or config.ui_scale
-    config.notifications = (data.notifications ~= nil) and data.notifications or true
-    config.theme         = data.theme or config.theme
-    config.title         = data.title or config.title
+    for k, v in pairs(data) do
+        if k ~= "modules" then config[k] = v end
+    end
     if type(data.modules) == "table" then for _, def in ipairs(defs) do local saved = data.modules[def.id] if type(saved) == "table" then local st = get_state(def.id) for k, v in pairs(saved) do st[k] = v end end end end
 end
 local function save_config() if not writefile then return end pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(config)) end) end
@@ -85,60 +93,39 @@ load_config()
 apply_theme(config.theme or "terminal_red")
 
 -- ============================================================
--- TERMINAL INTRO
+-- TERMINAL (fastfetch header · ascii+specs side-by-side)
 -- ============================================================
-local termGui = Instance.new("ScreenGui")
-termGui.Name = "LarpTerminal"
-termGui.ResetOnSpawn = false
-termGui.IgnoreGuiInset = true
-termGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-termGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local termGui = Instance.new("ScreenGui") termGui.Name = "LarpTerminal" termGui.ResetOnSpawn = false termGui.IgnoreGuiInset = true termGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling termGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local termFrame = Instance.new("Frame")
-termFrame.Size = UDim2.fromOffset(760, 560)
-termFrame.Position = UDim2.new(0.5, -380, 0.5, -280)
-termFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-termFrame.BackgroundTransparency = 0.15
-termFrame.BorderSizePixel = 0
-termFrame.ClipsDescendants = true
-termFrame.Active = true
-termFrame.Parent = termGui
-
+local termFrame = Instance.new("Frame") termFrame.Size = UDim2.fromOffset(860, 560) termFrame.Position = UDim2.new(0.5, -430, 0.5, -280) termFrame.BackgroundColor3 = Color3.new(0,0,0) termFrame.BackgroundTransparency = 0.15 termFrame.BorderSizePixel = 0 termFrame.ClipsDescendants = true termFrame.Active = true termFrame.Parent = termGui
 local termCorner = Instance.new("UICorner") termCorner.CornerRadius = UDim.new(0, 6) termCorner.Parent = termFrame
 local termStroke = Instance.new("UIStroke") termStroke.Color = Color3.fromRGB(80, 20, 20) termStroke.Thickness = 1 termStroke.Parent = termFrame
 
-local termTitlebar = Instance.new("Frame")
-termTitlebar.Size = UDim2.new(1, 0, 0, 30)
-termTitlebar.BackgroundColor3 = Color3.fromRGB(20, 10, 10)
-termTitlebar.BorderSizePixel = 0
-termTitlebar.Parent = termFrame
+local termTitlebar = Instance.new("Frame") termTitlebar.Size = UDim2.new(1, 0, 0, 30) termTitlebar.BackgroundColor3 = Color3.fromRGB(20, 10, 10) termTitlebar.BorderSizePixel = 0 termTitlebar.Parent = termFrame
 local ttbC = Instance.new("UICorner") ttbC.CornerRadius = UDim.new(0, 6) ttbC.Parent = termTitlebar
 local ttbMask = Instance.new("Frame") ttbMask.Size = UDim2.new(1, 0, 0, 15) ttbMask.Position = UDim2.new(0, 0, 1, -15) ttbMask.BackgroundColor3 = Color3.fromRGB(20, 10, 10) ttbMask.BorderSizePixel = 0 ttbMask.Parent = termTitlebar
 
-local termTitleText = Instance.new("TextLabel")
-termTitleText.BackgroundTransparency = 1 termTitleText.Position = UDim2.fromOffset(12, 0) termTitleText.Size = UDim2.new(1, -40, 1, 0)
-termTitleText.Font = Enum.Font.Code termTitleText.TextSize = 12 termTitleText.TextColor3 = Color3.fromRGB(200, 50, 50)
-termTitleText.TextXAlignment = Enum.TextXAlignment.Left termTitleText.Text = "root@larpclient:~" termTitleText.Parent = termTitlebar
+local termTitleText = Instance.new("TextLabel") termTitleText.BackgroundTransparency = 1 termTitleText.Position = UDim2.fromOffset(12, 0) termTitleText.Size = UDim2.new(1, -40, 1, 0) termTitleText.Font = Enum.Font.Code termTitleText.TextSize = 12 termTitleText.TextColor3 = Color3.fromRGB(200, 50, 50) termTitleText.TextXAlignment = Enum.TextXAlignment.Left termTitleText.Text = "root@larpclient:~" termTitleText.Parent = termTitlebar
 
-local termClose = Instance.new("TextButton")
-termClose.Size = UDim2.fromOffset(20, 20) termClose.Position = UDim2.new(1, -26, 0, 5)
-termClose.BackgroundColor3 = Color3.fromRGB(40, 10, 10) termClose.BorderSizePixel = 0
-termClose.Font = Enum.Font.Code termClose.TextSize = 12 termClose.TextColor3 = Color3.fromRGB(200, 100, 100) termClose.Text = "x" termClose.AutoButtonColor = false
-termClose.Parent = termTitlebar
+local termClose = Instance.new("TextButton") termClose.Size = UDim2.fromOffset(20, 20) termClose.Position = UDim2.new(1, -26, 0, 5) termClose.BackgroundColor3 = Color3.fromRGB(40, 10, 10) termClose.BorderSizePixel = 0 termClose.Font = Enum.Font.Code termClose.TextSize = 12 termClose.TextColor3 = Color3.fromRGB(200, 100, 100) termClose.Text = "x" termClose.AutoButtonColor = false termClose.Parent = termTitlebar
 local tcC = Instance.new("UICorner") tcC.CornerRadius = UDim.new(0, 4) tcC.Parent = termClose
 termClose.MouseButton1Click:Connect(function() termGui:Destroy() end)
 
-local termScroll = Instance.new("ScrollingFrame")
-termScroll.Size = UDim2.new(1, -20, 1, -80)
-termScroll.Position = UDim2.fromOffset(10, 40)
-termScroll.BackgroundTransparency = 1
-termScroll.BorderSizePixel = 0
-termScroll.ScrollBarThickness = 3
-termScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 50, 50)
-termScroll.CanvasSize = UDim2.new(0, 760, 0, 0)
-termScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-termScroll.Parent = termFrame
+local termScroll = Instance.new("ScrollingFrame") termScroll.Size = UDim2.new(1, -20, 1, -80) termScroll.Position = UDim2.fromOffset(10, 40) termScroll.BackgroundTransparency = 1 termScroll.BorderSizePixel = 0 termScroll.ScrollBarThickness = 3 termScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 50, 50) termScroll.CanvasSize = UDim2.new(0, 0, 0, 0) termScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y termScroll.Parent = termFrame
 
+-- Fastfetch command header (TOP)
+local ffLine = Instance.new("TextLabel")
+ffLine.Size = UDim2.new(1, 0, 0, 20)
+ffLine.Position = UDim2.fromOffset(0, 0)
+ffLine.BackgroundTransparency = 1
+ffLine.Font = Enum.Font.Code
+ffLine.TextSize = 12
+ffLine.TextXAlignment = Enum.TextXAlignment.Left
+ffLine.RichText = true
+ffLine.Text = '<font color="#FF6666">root@larpclient:~#</font> <font color="#FFAA88">fastfetch</font>'
+ffLine.Parent = termScroll
+
+-- Side-by-side body (ascii | specs)
 local asciiArt = [[
                                               @@%%%%%%%%%%%%%%@@                
                                            @%%%%%%%%%%%%%%%%%%%%%%@             
@@ -168,9 +155,10 @@ local asciiArt = [[
                                               @%%%%%%%%%%%%%%%%@                
                                                    @@@@@@@@                     
 ]]
+local asciiTrimmed = trim_ascii(asciiArt)
 
 local termSpecs = [[
-OS: Larp Client 1.5.0 x86_64
+OS: Larp Client 1.6.0 x86_64
 Host: Larp Station (LARP-1337)
 Kernel: 6.9.0-larp-generic
 Uptime: 1337 hours, 42 mins
@@ -179,40 +167,69 @@ Shell: bash 5.2.15
 Resolution: 1920x1080 @ 144hz
 WM: LarpWM (X11)
 Theme: Larp Dark Red
-
-root@larpclient:~# fastfetch
-root@larpclient:~# Do you want to proceed? (y/n)
+CPU: 13th Gen Intel(R) Core(TM) i7-1360P
+GPU: Intel Iris Xe Graphics
+Memory: 7.11 GiB / 30.90 GiB (23%)
+Disk (/): 276.20 GiB / 914.78 GiB (30%)
+Locale: en_US.UTF-8
 ]]
 
--- TextLabel with automatic Y sizing so the art renders
-local termText = Instance.new("TextLabel")
-termText.Size = UDim2.fromOffset(740, 0)
-termText.Position = UDim2.fromOffset(0, 0)
-termText.AutomaticSize = Enum.AutomaticSize.Y
-termText.BackgroundTransparency = 1
-termText.Font = Enum.Font.Code
-termText.TextSize = 11
-termText.TextXAlignment = Enum.TextXAlignment.Left
-termText.TextYAlignment = Enum.TextYAlignment.Top
-termText.TextWrapped = false
-termText.RichText = true
-termText.Text = string.format('<font color="#8B0000">%s</font>\n<font color="#FF6666">%s</font>', asciiArt, termSpecs)
-termText.Parent = termScroll
+local bodyRow = Instance.new("Frame")
+bodyRow.Size = UDim2.new(1, 0, 0, 0)
+bodyRow.Position = UDim2.fromOffset(0, 26)
+bodyRow.AutomaticSize = Enum.AutomaticSize.Y
+bodyRow.BackgroundTransparency = 1
+bodyRow.Parent = termScroll
+
+local asciiLabel = Instance.new("TextLabel")
+asciiLabel.Size = UDim2.new(0.6, 0, 0, 0)
+asciiLabel.Position = UDim2.fromOffset(0, 0)
+asciiLabel.AutomaticSize = Enum.AutomaticSize.Y
+asciiLabel.BackgroundTransparency = 1
+asciiLabel.Font = Enum.Font.Code
+asciiLabel.TextSize = 9
+asciiLabel.TextXAlignment = Enum.TextXAlignment.Left
+asciiLabel.TextYAlignment = Enum.TextYAlignment.Top
+asciiLabel.TextWrapped = false
+asciiLabel.RichText = true
+asciiLabel.Text = string.format('<font color="#8B0000">%s</font>', asciiTrimmed)
+asciiLabel.Parent = bodyRow
+
+local specLabel = Instance.new("TextLabel")
+specLabel.Size = UDim2.new(0.4, -10, 0, 0)
+specLabel.Position = UDim2.new(0.6, 10, 0, 0)
+specLabel.AutomaticSize = Enum.AutomaticSize.Y
+specLabel.BackgroundTransparency = 1
+specLabel.Font = Enum.Font.Code
+specLabel.TextSize = 11
+specLabel.TextXAlignment = Enum.TextXAlignment.Left
+specLabel.TextYAlignment = Enum.TextYAlignment.Top
+specLabel.TextWrapped = true
+specLabel.RichText = true
+specLabel.Text = string.format('<font color="#FF6666">%s</font>', termSpecs)
+specLabel.Parent = bodyRow
+
+-- Bottom prompt row (in termFrame, not in scroll)
+local promptRow = Instance.new("Frame")
+promptRow.Size = UDim2.new(1, -20, 0, 30)
+promptRow.Position = UDim2.new(0, 10, 1, -40)
+promptRow.BackgroundTransparency = 1
+promptRow.Parent = termFrame
 
 local termInputPrompt = Instance.new("TextLabel")
-termInputPrompt.Size = UDim2.fromOffset(120, 20)
-termInputPrompt.Position = UDim2.new(0, 10, 1, -35)
+termInputPrompt.Size = UDim2.fromOffset(400, 20)
+termInputPrompt.Position = UDim2.fromOffset(0, 5)
 termInputPrompt.BackgroundTransparency = 1
 termInputPrompt.Font = Enum.Font.Code
 termInputPrompt.TextSize = 12
 termInputPrompt.TextColor3 = Color3.fromRGB(255, 100, 100)
 termInputPrompt.TextXAlignment = Enum.TextXAlignment.Left
-termInputPrompt.Text = "root@larpclient:~#"
-termInputPrompt.Parent = termFrame
+termInputPrompt.Text = "root@larpclient:~# Do you want to proceed? (y/n)"
+termInputPrompt.Parent = promptRow
 
 local termInput = Instance.new("TextBox")
-termInput.Size = UDim2.new(1, -140, 0, 20)
-termInput.Position = UDim2.new(0, 130, 1, -35)
+termInput.Size = UDim2.new(1, -410, 0, 20)
+termInput.Position = UDim2.fromOffset(410, 5)
 termInput.BackgroundTransparency = 1
 termInput.Font = Enum.Font.Code
 termInput.TextSize = 12
@@ -220,9 +237,9 @@ termInput.TextColor3 = Color3.fromRGB(255, 150, 150)
 termInput.Text = ""
 termInput.TextXAlignment = Enum.TextXAlignment.Left
 termInput.ClearTextOnFocus = false
-termInput.PlaceholderText = "type y or n and press enter..."
-termInput.PlaceholderColor3 = Color3.fromRGB(100, 50, 50)
-termInput.Parent = termFrame
+termInput.PlaceholderText = "_"
+termInput.PlaceholderColor3 = Color3.fromRGB(255, 150, 150)
+termInput.Parent = promptRow
 
 local termResize = Instance.new("TextButton")
 termResize.Size = UDim2.fromOffset(16, 16)
@@ -234,19 +251,11 @@ termResize.Font = Enum.Font.Code
 termResize.TextSize = 12
 termResize.Parent = termFrame
 
--- Terminal drag/resize
+-- terminal drag / resize
 local termDragging, termDragStart, termStartPos
-termTitlebar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termDragging = true; termDragStart = input.Position; termStartPos = termFrame.Position
-    end
-end)
+termTitlebar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then termDragging = true; termDragStart = input.Position; termStartPos = termFrame.Position end end)
 local termResizing, termResizeStart, termSizeStart
-termResize.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termResizing = true; termResizeStart = input.Position; termSizeStart = termFrame.Size
-    end
-end)
+termResize.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then termResizing = true; termResizeStart = input.Position; termSizeStart = termFrame.Size end end)
 UserInputService.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         if termDragging then
@@ -254,21 +263,17 @@ UserInputService.InputChanged:Connect(function(input)
             termFrame.Position = UDim2.new(termStartPos.X.Scale, termStartPos.X.Offset + delta.X, termStartPos.Y.Scale, termStartPos.Y.Offset + delta.Y)
         elseif termResizing then
             local delta = input.Position - termResizeStart
-            termFrame.Size = UDim2.fromOffset(math.max(400, termSizeStart.X.Offset + delta.X), math.max(300, termSizeStart.Y.Offset + delta.Y))
+            termFrame.Size = UDim2.fromOffset(math.max(500, termSizeStart.X.Offset + delta.X), math.max(350, termSizeStart.Y.Offset + delta.Y))
         end
     end
 end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termDragging = false; termResizing = false
-    end
-end)
-
-local mainGui = nil
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then termDragging = false; termResizing = false end end)
 
 -- ============================================================
 -- MAIN GUI
 -- ============================================================
+local mainGui = nil
+
 local function init_main_gui()
     mainGui = Instance.new("ScreenGui")
     mainGui.Name = "LarpClient"
@@ -281,38 +286,61 @@ local function init_main_gui()
     main.Size = UDim2.fromOffset(620, 440)
     main.Position = UDim2.new(0.5, -310, 0.5, -220)
     main.BackgroundColor3 = C.bg
+    main.BackgroundTransparency = config.transparency or 0
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Active = true
     main.Parent = mainGui
-    local mc = Instance.new("UICorner") mc.CornerRadius = UDim.new(0, 6) mc.Parent = main
+    local mc = Instance.new("UICorner") mc.CornerRadius = UDim.new(0, config.corner_radius or 6) mc.Parent = main
     local ms = Instance.new("UIStroke") ms.Color = C.stroke ms.Thickness = 1 ms.Parent = main
 
     local uiScale = Instance.new("UIScale")
     uiScale.Scale = config.ui_scale
     uiScale.Parent = main
 
+    local baseFont = config.font_size or 12
+
     local titlebar = Instance.new("Frame")
     titlebar.Size = UDim2.new(1, 0, 0, 34) titlebar.BackgroundColor3 = C.panel titlebar.BorderSizePixel = 0 titlebar.Parent = main
-    local tbc = Instance.new("UICorner") tbc.CornerRadius = UDim.new(0, 6) tbc.Parent = titlebar
+    local tbc = Instance.new("UICorner") tbc.CornerRadius = UDim.new(0, config.corner_radius or 6) tbc.Parent = titlebar
     local tbm = Instance.new("Frame") tbm.Size = UDim2.new(1, 0, 0, 17) tbm.Position = UDim2.new(0, 0, 1, -17) tbm.BackgroundColor3 = C.panel tbm.BorderSizePixel = 0 tbm.Parent = titlebar
 
     local logo = Instance.new("Frame") logo.Size = UDim2.fromOffset(8, 8) logo.Position = UDim2.fromOffset(12, 13) logo.BackgroundColor3 = accent() logo.BorderSizePixel = 0 logo.Parent = titlebar
     local lc = Instance.new("UICorner") lc.CornerRadius = UDim.new(1, 0) lc.Parent = logo
+    local logoGlow = Instance.new("ImageLabel")
+    logoGlow.Size = UDim2.fromOffset(30, 30)
+    logoGlow.Position = UDim2.fromOffset(-11, -11)
+    logoGlow.BackgroundTransparency = 1
+    logoGlow.Image = "rbxassetid://5028857472"
+    logoGlow.ImageColor3 = accent()
+    logoGlow.ImageTransparency = 0.3
+    logoGlow.ZIndex = 0
+    logoGlow.Parent = logo
+
+    if config.animations then
+        task.spawn(function()
+            while logo.Parent do
+                TweenService:Create(logoGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {ImageTransparency = 0.7, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(-14, -14)}):Play()
+                task.wait(1.5)
+                TweenService:Create(logoGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {ImageTransparency = 0.2, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(-11, -11)}):Play()
+                task.wait(1.5)
+            end
+        end)
+    end
 
     local title = Instance.new("TextLabel")
     title.BackgroundTransparency = 1 title.Position = UDim2.fromOffset(28, 0) title.Size = UDim2.new(1, -180, 1, 0)
-    title.Font = Enum.Font.Code title.TextSize = 14 title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.Code title.TextSize = baseFont + 2 title.TextXAlignment = Enum.TextXAlignment.Left
     title.TextColor3 = accent() title.Text = config.title title.Parent = titlebar
 
     local ver = Instance.new("TextLabel")
     ver.BackgroundTransparency = 1 ver.Position = UDim2.new(1, -160, 0, 0) ver.Size = UDim2.fromOffset(80, 34)
-    ver.Font = Enum.Font.Code ver.TextSize = 11 ver.TextColor3 = C.text_dim ver.TextXAlignment = Enum.TextXAlignment.Right
-    ver.Text = "v1.5" ver.Parent = titlebar
+    ver.Font = Enum.Font.Code ver.TextSize = baseFont - 1 ver.TextColor3 = C.text_dim ver.TextXAlignment = Enum.TextXAlignment.Right
+    ver.Text = "v1.6" ver.Parent = titlebar
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.fromOffset(22, 22) closeBtn.Position = UDim2.new(1, -32, 0, 6) closeBtn.BackgroundColor3 = C.panel2 closeBtn.BorderSizePixel = 0
-    closeBtn.Font = Enum.Font.Code closeBtn.TextSize = 14 closeBtn.TextColor3 = C.text_dim closeBtn.Text = "x" closeBtn.AutoButtonColor = false closeBtn.Parent = titlebar
+    closeBtn.Font = Enum.Font.Code closeBtn.TextSize = baseFont + 2 closeBtn.TextColor3 = C.text_dim closeBtn.Text = "x" closeBtn.AutoButtonColor = false closeBtn.Parent = titlebar
     local cbc = Instance.new("UICorner") cbc.CornerRadius = UDim.new(0, 4) cbc.Parent = closeBtn
     closeBtn.MouseEnter:Connect(function() TweenService:Create(closeBtn, TweenInfo.new(0.12), {BackgroundColor3=C.danger, TextColor3=Color3.new(1,1,1)}):Play() end)
     closeBtn.MouseLeave:Connect(function() TweenService:Create(closeBtn, TweenInfo.new(0.12), {BackgroundColor3=C.panel2, TextColor3=C.text_dim}):Play() end)
@@ -332,7 +360,7 @@ local function init_main_gui()
     for i, name in ipairs(tabs) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, 0, 0, 30) btn.BackgroundColor3 = (name == active_tab) and C.panel2 or C.panel
-        btn.BorderSizePixel = 0 btn.Font = Enum.Font.Code btn.TextSize = 12
+        btn.BorderSizePixel = 0 btn.Font = Enum.Font.Code btn.TextSize = baseFont
         btn.TextColor3 = (name == active_tab) and accent() or C.text_dim
         btn.TextXAlignment = Enum.TextXAlignment.Left btn.Text = "  " .. name btn.AutoButtonColor = false
         btn.LayoutOrder = i btn.Parent = sidebar
@@ -344,19 +372,18 @@ local function init_main_gui()
     end
 
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -130, 1, -60) content.Position = UDim2.new(0, 130, 0, 34) content.BackgroundColor3 = C.bg content.BorderSizePixel = 0 content.Parent = main
+    content.Size = UDim2.new(1, -130, 1, -60) content.Position = UDim2.new(0, 130, 0, 34) content.BackgroundColor3 = C.bg content.BackgroundTransparency = config.transparency or 0 content.BorderSizePixel = 0 content.Parent = main
 
     local search_wrap = Instance.new("Frame")
     search_wrap.Size = UDim2.new(1, -16, 0, 30) search_wrap.Position = UDim2.fromOffset(8, 8) search_wrap.BackgroundColor3 = C.panel search_wrap.BorderSizePixel = 0 search_wrap.Parent = content
     local swc = Instance.new("UICorner") swc.CornerRadius = UDim.new(0, 4) swc.Parent = search_wrap
     local sws = Instance.new("UIStroke") sws.Color = C.stroke sws.Thickness = 1 sws.Parent = search_wrap
 
-    local search_icon = Instance.new("TextLabel") search_icon.BackgroundTransparency = 1 search_icon.Position = UDim2.fromOffset(8, 0) search_icon.Size = UDim2.fromOffset(20, 30)
-    search_icon.Font = Enum.Font.Code search_icon.TextSize = 13 search_icon.TextColor3 = C.text_dim search_icon.Text = "/" search_icon.Parent = search_wrap
+    local search_icon = Instance.new("TextLabel") search_icon.BackgroundTransparency = 1 search_icon.Position = UDim2.fromOffset(8, 0) search_icon.Size = UDim2.fromOffset(20, 30) search_icon.Font = Enum.Font.Code search_icon.TextSize = baseFont + 1 search_icon.TextColor3 = C.text_dim search_icon.Text = "/" search_icon.Parent = search_wrap
 
     local search_box = Instance.new("TextBox")
     search_box.BackgroundTransparency = 1 search_box.Position = UDim2.fromOffset(28, 0) search_box.Size = UDim2.new(1, -36, 1, 0)
-    search_box.Font = Enum.Font.Code search_box.TextSize = 12 search_box.TextColor3 = C.text search_box.TextXAlignment = Enum.TextXAlignment.Left
+    search_box.Font = Enum.Font.Code search_box.TextSize = baseFont search_box.TextColor3 = C.text search_box.TextXAlignment = Enum.TextXAlignment.Left
     search_box.PlaceholderText = "search modules..." search_box.PlaceholderColor3 = C.text_dim search_box.Text = "" search_box.ClearTextOnFocus = false search_box.Parent = search_wrap
 
     local scroll = Instance.new("ScrollingFrame")
@@ -368,18 +395,10 @@ local function init_main_gui()
     statusbar.Size = UDim2.new(1, 0, 0, 26) statusbar.Position = UDim2.new(0, 0, 1, -26) statusbar.BackgroundColor3 = C.panel statusbar.BorderSizePixel = 0 statusbar.Parent = main
     local sts = Instance.new("UIStroke") sts.Color = C.stroke sts.Thickness = 1 sts.Parent = statusbar
 
-    local status_left = Instance.new("TextLabel")
-    status_left.BackgroundTransparency = 1 status_left.Position = UDim2.fromOffset(10, 0) status_left.Size = UDim2.new(1, -100, 1, 0)
-    status_left.Font = Enum.Font.Code status_left.TextSize = 11 status_left.TextXAlignment = Enum.TextXAlignment.Left
-    status_left.TextColor3 = C.text_dim status_left.Text = "user: " .. LocalPlayer.Name status_left.Parent = statusbar
+    local status_left = Instance.new("TextLabel") status_left.BackgroundTransparency = 1 status_left.Position = UDim2.fromOffset(10, 0) status_left.Size = UDim2.new(1, -100, 1, 0) status_left.Font = Enum.Font.Code status_left.TextSize = baseFont - 1 status_left.TextXAlignment = Enum.TextXAlignment.Left status_left.TextColor3 = C.text_dim status_left.Text = "user: " .. LocalPlayer.Name status_left.Parent = statusbar
+    local status_right = Instance.new("TextLabel") status_right.BackgroundTransparency = 1 status_right.Position = UDim2.new(1, -80, 0, 0) status_right.Size = UDim2.fromOffset(70, 26) status_right.Font = Enum.Font.Code status_right.TextSize = baseFont - 1 status_right.TextXAlignment = Enum.TextXAlignment.Right status_right.TextColor3 = accent() status_right.Text = "ready" status_right.Parent = statusbar
 
-    local status_right = Instance.new("TextLabel")
-    status_right.BackgroundTransparency = 1 status_right.Position = UDim2.new(1, -80, 0, 0) status_right.Size = UDim2.fromOffset(70, 26)
-    status_right.Font = Enum.Font.Code status_right.TextSize = 11 status_right.TextXAlignment = Enum.TextXAlignment.Right
-    status_right.TextColor3 = accent() status_right.Text = "ready" status_right.Parent = statusbar
-
-    local toast_holder = Instance.new("Frame")
-    toast_holder.Size = UDim2.fromOffset(260, 200) toast_holder.Position = UDim2.new(1, -276, 0, 20) toast_holder.BackgroundTransparency = 1 toast_holder.Parent = mainGui
+    local toast_holder = Instance.new("Frame") toast_holder.Size = UDim2.fromOffset(260, 200) toast_holder.Position = UDim2.new(1, -276, 0, 20) toast_holder.BackgroundTransparency = 1 toast_holder.Parent = mainGui
     local tl = Instance.new("UIListLayout") tl.Padding = UDim.new(0, 6) tl.SortOrder = Enum.SortOrder.LayoutOrder tl.Parent = toast_holder
 
     local toast_order = 0
@@ -389,8 +408,7 @@ local function init_main_gui()
         local t = Instance.new("Frame") t.Size = UDim2.new(1, 0, 0, 30) t.BackgroundColor3 = C.panel2 t.BorderSizePixel = 0 t.LayoutOrder = toast_order t.Parent = toast_holder
         local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 4) c.Parent = t
         local s = Instance.new("UIStroke") s.Color = col or accent() s.Thickness = 1 s.Parent = t
-        local lab = Instance.new("TextLabel") lab.BackgroundTransparency = 1 lab.Position = UDim2.fromOffset(10, 0) lab.Size = UDim2.new(1, -16, 1, 0)
-        lab.Font = Enum.Font.Code lab.TextSize = 11 lab.TextColor3 = C.text lab.TextXAlignment = Enum.TextXAlignment.Left lab.Text = text lab.Parent = t
+        local lab = Instance.new("TextLabel") lab.BackgroundTransparency = 1 lab.Position = UDim2.fromOffset(10, 0) lab.Size = UDim2.new(1, -16, 1, 0) lab.Font = Enum.Font.Code lab.TextSize = baseFont - 1 lab.TextColor3 = C.text lab.TextXAlignment = Enum.TextXAlignment.Left lab.Text = text lab.Parent = t
         task.delay(2.5, function()
             TweenService:Create(t, TweenInfo.new(0.25), {BackgroundTransparency=1}):Play()
             TweenService:Create(s, TweenInfo.new(0.25), {Transparency=1}):Play()
@@ -400,7 +418,13 @@ local function init_main_gui()
     end
 
     local rebind_mode = nil
-    local SWATCHES = {{255,40,40},{255,150,30},{255,220,40},{90,210,120},{0,200,130},{60,180,255},{140,100,255},{255,100,200},{230,230,235},{120,120,130}}
+    local SWATCHES = {
+        {255,40,40},{255,80,40},{255,150,30},{255,220,40},{220,255,40},
+        {140,255,60},{90,210,120},{0,220,140},{0,200,180},{0,200,130},
+        {0,180,220},{60,180,255},{40,140,255},{80,100,255},{140,100,255},
+        {180,80,255},{220,80,220},{255,100,200},{255,120,160},{255,180,160},
+        {240,200,200},{230,230,235},{180,180,200},{120,120,130},{70,70,80},
+    }
     local expanded = {}
     local row_refs = {}
 
@@ -415,8 +439,8 @@ local function init_main_gui()
     local function build_slider(setting, st, parent, order)
         local row = Instance.new("Frame") row.Size = UDim2.new(1, -8, 0, 36) row.BackgroundColor3 = C.panel3 row.BorderSizePixel = 0 row.LayoutOrder = order row.Parent = parent
         local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 3) rc.Parent = row
-        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(8, 0) lbl.Size = UDim2.new(1, -60, 0, 16) lbl.Font = Enum.Font.Code lbl.TextSize = 10 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = setting.label lbl.Parent = row
-        local val = Instance.new("TextLabel") val.BackgroundTransparency = 1 val.Position = UDim2.new(1, -56, 0, 0) val.Size = UDim2.fromOffset(48, 16) val.Font = Enum.Font.Code val.TextSize = 10 val.TextColor3 = accent() val.TextXAlignment = Enum.TextXAlignment.Right val.Text = tostring(st[setting.id]) val.Parent = row
+        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(8, 0) lbl.Size = UDim2.new(1, -60, 0, 16) lbl.Font = Enum.Font.Code lbl.TextSize = baseFont - 2 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = setting.label lbl.Parent = row
+        local val = Instance.new("TextLabel") val.BackgroundTransparency = 1 val.Position = UDim2.new(1, -56, 0, 0) val.Size = UDim2.fromOffset(48, 16) val.Font = Enum.Font.Code val.TextSize = baseFont - 2 val.TextColor3 = accent() val.TextXAlignment = Enum.TextXAlignment.Right val.Text = tostring(st[setting.id]) val.Parent = row
         local bar = Instance.new("Frame") bar.Size = UDim2.new(1, -16, 0, 8) bar.Position = UDim2.new(0, 8, 0, 22) bar.BackgroundColor3 = C.off bar.BorderSizePixel = 0 bar.Parent = row
         local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(1,0) bc.Parent = bar
         local alpha0 = (st[setting.id] - setting.min) / (setting.max - setting.min)
@@ -424,7 +448,6 @@ local function init_main_gui()
         local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(1,0) fc.Parent = fill
         local knob = Instance.new("Frame") knob.Size = UDim2.fromOffset(12, 12) knob.Position = UDim2.new(alpha0, -6, 0.5, -6) knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = bar
         local kc = Instance.new("UICorner") kc.CornerRadius = UDim.new(1,0) kc.Parent = knob
-
         local function apply_at(mx)
             local ap, aw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
             if aw <= 0 then return end
@@ -445,14 +468,12 @@ local function init_main_gui()
     local function build_color(setting, st, parent, order)
         local row = Instance.new("Frame") row.Size = UDim2.new(1, -8, 0, 32) row.BackgroundColor3 = C.panel3 row.BorderSizePixel = 0 row.LayoutOrder = order row.Parent = parent
         local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 3) rc.Parent = row
-        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(8, 0) lbl.Size = UDim2.new(1, -50, 1, 0) lbl.Font = Enum.Font.Code lbl.TextSize = 10 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = setting.label lbl.Parent = row
+        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(8, 0) lbl.Size = UDim2.new(1, -50, 1, 0) lbl.Font = Enum.Font.Code lbl.TextSize = baseFont - 2 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = setting.label lbl.Parent = row
         local preview = Instance.new("TextButton") preview.Size = UDim2.fromOffset(28, 20) preview.Position = UDim2.new(1, -36, 0.5, -10) preview.BackgroundColor3 = arrToColor(st[setting.id]) preview.BorderSizePixel = 0 preview.Text = "" preview.AutoButtonColor = false preview.Parent = row
         local pc = Instance.new("UICorner") pc.CornerRadius = UDim.new(0, 3) pc.Parent = preview
         local ps = Instance.new("UIStroke") ps.Color = C.stroke ps.Thickness = 1 ps.Parent = preview
         preview.MouseButton1Click:Connect(function()
-            local popup = Instance.new("Frame")
-            popup.Size = UDim2.fromOffset(220, 70) popup.Position = UDim2.new(0, math.max(0, preview.AbsolutePosition.X - main.AbsolutePosition.X - 100), 0, preview.AbsolutePosition.Y - main.AbsolutePosition.Y + 26)
-            popup.BackgroundColor3 = C.panel2 popup.BorderSizePixel = 0 popup.ZIndex = 20 popup.Parent = main
+            local popup = Instance.new("Frame") popup.Size = UDim2.fromOffset(260, 90) popup.Position = UDim2.new(0, math.max(0, preview.AbsolutePosition.X - main.AbsolutePosition.X - 120), 0, preview.AbsolutePosition.Y - main.AbsolutePosition.Y + 26) popup.BackgroundColor3 = C.panel2 popup.BorderSizePixel = 0 popup.ZIndex = 20 popup.Parent = main
             local ppc = Instance.new("UICorner") ppc.CornerRadius = UDim.new(0, 4) ppc.Parent = popup
             local pps = Instance.new("UIStroke") pps.Color = C.stroke pps.Thickness = 1 pps.Parent = popup
             local grid = Instance.new("UIGridLayout") grid.CellSize = UDim2.fromOffset(18, 18) grid.CellPadding = UDim2.fromOffset(4, 4) grid.Padding = UDim.new(0, 6) grid.Parent = popup
@@ -478,14 +499,20 @@ local function init_main_gui()
         local kc = Instance.new("UICorner") kc.CornerRadius = UDim.new(1,0) kc.Parent = knob
         local gear
         if has_settings then
-            gear = Instance.new("TextButton") gear.Size = UDim2.fromOffset(22, 22) gear.Position = UDim2.new(1, -78, 0, 12) gear.BackgroundTransparency = 1 gear.Font = Enum.Font.Code gear.TextSize = 13 gear.TextColor3 = C.text_dim gear.Text = expanded[def.id] and "v" or ">" gear.AutoButtonColor = false gear.ZIndex = 3 gear.Parent = head
+            gear = Instance.new("TextButton") gear.Size = UDim2.fromOffset(22, 22) gear.Position = UDim2.new(1, -78, 0, 12) gear.BackgroundTransparency = 1 gear.Font = Enum.Font.Code gear.TextSize = baseFont + 1 gear.TextColor3 = C.text_dim gear.Text = expanded[def.id] and "v" or ">" gear.AutoButtonColor = false gear.ZIndex = 3 gear.Parent = head
         end
-        local key_lbl = Instance.new("TextButton") key_lbl.Size = UDim2.fromOffset(42, 18) key_lbl.Position = UDim2.new(1, -130, 0, 14) key_lbl.BackgroundColor3 = C.panel2 key_lbl.BorderSizePixel = 0 key_lbl.Font = Enum.Font.Code key_lbl.TextSize = 10 key_lbl.TextColor3 = C.text_dim key_lbl.Text = "[" .. (st.key ~= "" and st.key or "?") .. "]" key_lbl.AutoButtonColor = false key_lbl.ZIndex = 3 key_lbl.Parent = head
+        local key_lbl = Instance.new("TextButton") key_lbl.Size = UDim2.fromOffset(42, 18) key_lbl.Position = UDim2.new(1, -130, 0, 14) key_lbl.BackgroundColor3 = C.panel2 key_lbl.BorderSizePixel = 0 key_lbl.Font = Enum.Font.Code key_lbl.TextSize = baseFont - 2 key_lbl.TextColor3 = C.text_dim key_lbl.Text = "[" .. (st.key ~= "" and st.key or "?") .. "]" key_lbl.AutoButtonColor = false key_lbl.ZIndex = 3 key_lbl.Parent = head
         local klc = Instance.new("UICorner") klc.CornerRadius = UDim.new(0, 3) klc.Parent = key_lbl
-        local name = Instance.new("TextLabel") name.BackgroundTransparency = 1 name.Position = UDim2.fromOffset(12, 6) name.Size = UDim2.new(1, -160, 0, 16) name.Font = Enum.Font.Code name.TextSize = 12 name.TextColor3 = C.text name.TextXAlignment = Enum.TextXAlignment.Left name.Text = def.name name.ZIndex = 3 name.Parent = head
-        local desc = Instance.new("TextLabel") desc.BackgroundTransparency = 1 desc.Position = UDim2.fromOffset(12, 24) desc.Size = UDim2.new(1, -160, 0, 14) desc.Font = Enum.Font.Code desc.TextSize = 10 desc.TextColor3 = C.text_dim desc.TextXAlignment = Enum.TextXAlignment.Left desc.Text = def.desc or "" desc.ZIndex = 3 desc.Parent = head
-        head.MouseEnter:Connect(function() TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3=C.panel2}):Play() end)
-        head.MouseLeave:Connect(function() TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3=C.panel}):Play() end)
+        local name = Instance.new("TextLabel") name.BackgroundTransparency = 1 name.Position = UDim2.fromOffset(12, 6) name.Size = UDim2.new(1, -160, 0, 16) name.Font = Enum.Font.Code name.TextSize = baseFont name.TextColor3 = C.text name.TextXAlignment = Enum.TextXAlignment.Left name.Text = def.name name.ZIndex = 3 name.Parent = head
+        local desc = Instance.new("TextLabel") desc.BackgroundTransparency = 1 desc.Position = UDim2.fromOffset(12, 24) desc.Size = UDim2.new(1, -160, 0, 14) desc.Font = Enum.Font.Code desc.TextSize = baseFont - 2 desc.TextColor3 = C.text_dim desc.TextXAlignment = Enum.TextXAlignment.Left desc.Text = def.desc or "" desc.ZIndex = 3 desc.Parent = head
+        head.MouseEnter:Connect(function()
+            TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3=C.panel2}):Play()
+            TweenService:Create(rs, TweenInfo.new(0.1), {Color=accent(), Thickness=2}):Play()
+        end)
+        head.MouseLeave:Connect(function()
+            TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3=C.panel}):Play()
+            TweenService:Create(rs, TweenInfo.new(0.1), {Color=C.stroke, Thickness=1}):Play()
+        end)
         local ref = {row=row, head=head, tog=tog, knob=knob, key_lbl=key_lbl, gear=gear, def=def}
         row_refs[def.id] = ref
         local function do_toggle() st.enabled = not st.enabled set_toggle_visual(ref, st.enabled) notify(def.name .. (st.enabled and " on" or " off"), st.enabled and accent() or C.text_dim) schedule_save() end
@@ -505,16 +532,16 @@ local function init_main_gui()
 
     local function build_larping_extras()
         local order = 100
-        local function mkheader(text) local l = Instance.new("TextLabel") l.Size = UDim2.new(1, -6, 0, 20) l.BackgroundTransparency = 1 l.Font = Enum.Font.Code l.TextSize = 10 l.TextColor3 = accent() l.TextXAlignment = Enum.TextXAlignment.Left l.Text = string.upper(text) l.LayoutOrder = order l.Parent = scroll order += 1 end
+        local function mkheader(text) local l = Instance.new("TextLabel") l.Size = UDim2.new(1, -6, 0, 20) l.BackgroundTransparency = 1 l.Font = Enum.Font.Code l.TextSize = baseFont - 2 l.TextColor3 = accent() l.TextXAlignment = Enum.TextXAlignment.Left l.Text = string.upper(text) l.LayoutOrder = order l.Parent = scroll order += 1 end
         mkheader("limiteds / accessories")
         local row = Instance.new("Frame") row.Size = UDim2.new(1, -6, 0, 60) row.BackgroundColor3 = C.panel row.BorderSizePixel = 0 row.LayoutOrder = order row.Parent = scroll order += 1
         local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 4) rc.Parent = row
         local rs = Instance.new("UIStroke") rs.Color = C.stroke rs.Thickness = 1 rs.Parent = row
-        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(10, 6) lbl.Size = UDim2.new(1, -20, 0, 14) lbl.Font = Enum.Font.Code lbl.TextSize = 10 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = "asset ID (limiteds, hats, accessories)" lbl.Parent = row
-        local input = Instance.new("TextBox") input.Size = UDim2.new(1, -110, 0, 24) input.Position = UDim2.fromOffset(10, 26) input.BackgroundColor3 = C.panel2 input.BorderSizePixel = 0 input.Font = Enum.Font.Code input.TextSize = 11 input.TextColor3 = C.text input.PlaceholderText = "rbxassetid" input.PlaceholderColor3 = C.text_dim input.Text = "" input.ClearTextOnFocus = false input.Parent = row
+        local lbl = Instance.new("TextLabel") lbl.BackgroundTransparency = 1 lbl.Position = UDim2.fromOffset(10, 6) lbl.Size = UDim2.new(1, -20, 0, 14) lbl.Font = Enum.Font.Code lbl.TextSize = baseFont - 2 lbl.TextColor3 = C.text_dim lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = "asset ID (limiteds, hats, accessories)" lbl.Parent = row
+        local input = Instance.new("TextBox") input.Size = UDim2.new(1, -110, 0, 24) input.Position = UDim2.fromOffset(10, 26) input.BackgroundColor3 = C.panel2 input.BorderSizePixel = 0 input.Font = Enum.Font.Code input.TextSize = baseFont - 1 input.TextColor3 = C.text input.PlaceholderText = "rbxassetid" input.PlaceholderColor3 = C.text_dim input.Text = "" input.ClearTextOnFocus = false input.Parent = row
         local ic = Instance.new("UICorner") ic.CornerRadius = UDim.new(0, 3) ic.Parent = input
         local is = Instance.new("UIStroke") is.Color = C.stroke is.Thickness = 1 is.Parent = input
-        local spawn_btn = Instance.new("TextButton") spawn_btn.Size = UDim2.fromOffset(90, 24) spawn_btn.Position = UDim2.new(1, -100, 0, 26) spawn_btn.BackgroundColor3 = C.panel2 spawn_btn.BorderSizePixel = 0 spawn_btn.Font = Enum.Font.Code spawn_btn.TextSize = 11 spawn_btn.TextColor3 = accent() spawn_btn.Text = "spawn" spawn_btn.AutoButtonColor = false spawn_btn.Parent = row
+        local spawn_btn = Instance.new("TextButton") spawn_btn.Size = UDim2.fromOffset(90, 24) spawn_btn.Position = UDim2.new(1, -100, 0, 26) spawn_btn.BackgroundColor3 = C.panel2 spawn_btn.BorderSizePixel = 0 spawn_btn.Font = Enum.Font.Code spawn_btn.TextSize = baseFont - 1 spawn_btn.TextColor3 = accent() spawn_btn.Text = "spawn" spawn_btn.AutoButtonColor = false spawn_btn.Parent = row
         local sbc = Instance.new("UICorner") sbc.CornerRadius = UDim.new(0, 3) sbc.Parent = spawn_btn
         local sbs2 = Instance.new("UIStroke") sbs2.Color = C.stroke sbs2.Thickness = 1 sbs2.Parent = spawn_btn
         spawn_btn.MouseButton1Click:Connect(function()
@@ -527,14 +554,14 @@ local function init_main_gui()
         local qgrid = Instance.new("UIGridLayout") qgrid.CellSize = UDim2.new(0.5, -4, 0, 26) qgrid.CellPadding = UDim2.fromOffset(6, 6) qgrid.SortOrder = Enum.SortOrder.LayoutOrder qgrid.Parent = quick_row
         local presets = {{name="top hat", color={30,30,30}},{name="gold crown", color={255,200,0}},{name="blue halo", color={60,180,255}},{name="pink wings", color={255,100,200}}}
         for _, pr in ipairs(presets) do
-            local b = Instance.new("TextButton") b.BackgroundColor3 = C.panel b.BorderSizePixel = 0 b.Font = Enum.Font.Code b.TextSize = 11 b.TextColor3 = C.text b.Text = pr.name b.AutoButtonColor = false b.Parent = quick_row
+            local b = Instance.new("TextButton") b.BackgroundColor3 = C.panel b.BorderSizePixel = 0 b.Font = Enum.Font.Code b.TextSize = baseFont - 1 b.TextColor3 = C.text b.Text = pr.name b.AutoButtonColor = false b.Parent = quick_row
             local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(0, 3) bc.Parent = b
             local bs = Instance.new("UIStroke") bs.Color = C.stroke bs.Thickness = 1 bs.Parent = b
             b.MouseButton1Click:Connect(function() spawn_primitive_accessory(pr.name, arrToColor(pr.color)) end)
         end
         mkheader("clear")
         local clear_row = Instance.new("Frame") clear_row.Size = UDim2.new(1, -6, 0, 30) clear_row.BackgroundTransparency = 1 clear_row.LayoutOrder = order clear_row.Parent = scroll order += 1
-        local clear_btn2 = Instance.new("TextButton") clear_btn2.Size = UDim2.new(1, 0, 0, 28) clear_btn2.BackgroundColor3 = C.panel2 clear_btn2.BorderSizePixel = 0 clear_btn2.Font = Enum.Font.Code clear_btn2.TextSize = 11 clear_btn2.TextColor3 = C.danger clear_btn2.Text = "remove all spawned accessories" clear_btn2.AutoButtonColor = false clear_btn2.Parent = clear_row
+        local clear_btn2 = Instance.new("TextButton") clear_btn2.Size = UDim2.new(1, 0, 0, 28) clear_btn2.BackgroundColor3 = C.panel2 clear_btn2.BorderSizePixel = 0 clear_btn2.Font = Enum.Font.Code clear_btn2.TextSize = baseFont - 1 clear_btn2.TextColor3 = C.danger clear_btn2.Text = "remove all spawned accessories" clear_btn2.AutoButtonColor = false clear_btn2.Parent = clear_row
         local cbc2 = Instance.new("UICorner") cbc2.CornerRadius = UDim.new(0, 3) cbc2.Parent = clear_btn2
         local cbs2 = Instance.new("UIStroke") cbs2.Color = C.stroke cbs2.Thickness = 1 cbs2.Parent = clear_btn2
         clear_btn2.MouseButton1Click:Connect(clear_spawned_accessories)
@@ -542,28 +569,73 @@ local function init_main_gui()
 
     local function build_settings_tab()
         local order = 0
-        local function section(title) order += 1 local lbl = Instance.new("TextLabel") lbl.Size = UDim2.new(1, -6, 0, 20) lbl.BackgroundTransparency = 1 lbl.Font = Enum.Font.Code lbl.TextSize = 10 lbl.TextColor3 = accent() lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = string.upper(title) lbl.LayoutOrder = order lbl.Parent = scroll end
+        local function section(title) order += 1 local lbl = Instance.new("TextLabel") lbl.Size = UDim2.new(1, -6, 0, 20) lbl.BackgroundTransparency = 1 lbl.Font = Enum.Font.Code lbl.TextSize = baseFont - 2 lbl.TextColor3 = accent() lbl.TextXAlignment = Enum.TextXAlignment.Left lbl.Text = string.upper(title) lbl.LayoutOrder = order lbl.Parent = scroll end
         local function simple_row(label, h_builder, height)
             order += 1
             local row = Instance.new("Frame") row.Size = UDim2.new(1, -6, 0, height or 34) row.BackgroundColor3 = C.panel row.BorderSizePixel = 0 row.LayoutOrder = order row.Parent = scroll
             local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 4) rc.Parent = row
             local rs = Instance.new("UIStroke") rs.Color = C.stroke rs.Thickness = 1 rs.Parent = row
-            local l = Instance.new("TextLabel") l.BackgroundTransparency = 1 l.Position = UDim2.fromOffset(12, 0) l.Size = UDim2.new(1, -140, 1, 0) l.Font = Enum.Font.Code l.TextSize = 12 l.TextColor3 = C.text l.TextXAlignment = Enum.TextXAlignment.Left l.Text = label l.Parent = row
+            local l = Instance.new("TextLabel") l.BackgroundTransparency = 1 l.Position = UDim2.fromOffset(12, 0) l.Size = UDim2.new(1, -140, 1, 0) l.Font = Enum.Font.Code l.TextSize = baseFont l.TextColor3 = C.text l.TextXAlignment = Enum.TextXAlignment.Left l.Text = label l.Parent = row
             h_builder(row) return row
         end
+        local function mini_slider(row, min_val, max_val, cur, on_change)
+            local bar = Instance.new("Frame") bar.Size = UDim2.fromOffset(140, 8) bar.Position = UDim2.new(1, -160, 0.5, -4) bar.BackgroundColor3 = C.off bar.BorderSizePixel = 0 bar.Parent = row
+            local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(1,0) bc.Parent = bar
+            local a0 = (cur - min_val) / (max_val - min_val)
+            local fill = Instance.new("Frame") fill.Size = UDim2.new(a0, 0, 1, 0) fill.BackgroundColor3 = accent() fill.BorderSizePixel = 0 fill.Parent = bar
+            local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(1,0) fc.Parent = fill
+            local val = Instance.new("TextLabel") val.BackgroundTransparency = 1 val.Position = UDim2.new(1, -66, 0, 0) val.Size = UDim2.fromOffset(60, 34) val.Font = Enum.Font.Code val.TextSize = baseFont - 1 val.TextColor3 = accent() val.TextXAlignment = Enum.TextXAlignment.Right val.Text = string.format("%.2f", cur) val.Parent = row
+            row.InputBegan:Connect(function(input)
+                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+                local function upd()
+                    local mx = UserInputService:GetMouseLocation().X
+                    local ap, aw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
+                    if aw <= 0 then return end
+                    local a = math.clamp((mx - ap) / aw, 0, 1)
+                    local v = math.floor((min_val + a * (max_val - min_val)) * 100 + 0.5) / 100
+                    val.Text = string.format("%.2f", v)
+                    fill.Size = UDim2.new(a, 0, 1, 0)
+                    on_change(v)
+                end
+                upd()
+                local c1 = UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then upd() end end)
+                local c2; c2 = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then c1:Disconnect() c2:Disconnect() end end)
+            end)
+        end
+
         section("interface")
-        simple_row("Menu Key", function(row) local btn = Instance.new("TextButton") btn.Size = UDim2.fromOffset(80, 22) btn.Position = UDim2.new(1, -92, 0.5, -11) btn.BackgroundColor3 = C.panel2 btn.BorderSizePixel = 0 btn.Font = Enum.Font.Code btn.TextSize = 11 btn.TextColor3 = C.text btn.Text = "[" .. config.menu_key .. "]" btn.AutoButtonColor = false btn.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 3) c.Parent = btn local s = Instance.new("UIStroke") s.Color = C.stroke s.Thickness = 1 s.Parent = btn btn.MouseButton1Click:Connect(function() if rebind_mode and rebind_mode.ref then rebind_mode.ref.Text = rebind_mode.__prev or rebind_mode.ref.Text end rebind_mode = {type="menu", ref=btn, __prev=btn.Text} btn.Text = "[...]" end) end)
-        simple_row("UI Scale", function(row) local bar = Instance.new("Frame") bar.Size = UDim2.fromOffset(140, 8) bar.Position = UDim2.new(1, -160, 0.5, -4) bar.BackgroundColor3 = C.off bar.BorderSizePixel = 0 bar.Parent = row local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(1,0) bc.Parent = bar local min, max = 0.8, 1.4 local a0 = (config.ui_scale - min) / (max - min) local fill = Instance.new("Frame") fill.Size = UDim2.new(a0, 0, 1, 0) fill.BackgroundColor3 = accent() fill.BorderSizePixel = 0 fill.Parent = bar local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(1,0) fc.Parent = fill local val = Instance.new("TextLabel") val.BackgroundTransparency = 1 val.Position = UDim2.new(1, -66, 0, 0) val.Size = UDim2.fromOffset(60, 34) val.Font = Enum.Font.Code val.TextSize = 11 val.TextColor3 = accent() val.TextXAlignment = Enum.TextXAlignment.Right val.Text = string.format("%.2f", config.ui_scale) val.Parent = row row.InputBegan:Connect(function(input) if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end local function upd() local mx = UserInputService:GetMouseLocation().X local ap, aw = bar.AbsolutePosition.X, bar.AbsoluteSize.X if aw <= 0 then return end local a = math.clamp((mx - ap) / aw, 0, 1) config.ui_scale = math.floor((min + a * (max - min)) * 100 + 0.5) / 100 val.Text = string.format("%.2f", config.ui_scale) fill.Size = UDim2.new(a, 0, 1, 0) uiScale.Scale = config.ui_scale schedule_save() end upd() local c1 = UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then upd() end end) local c2; c2 = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then c1:Disconnect() c2:Disconnect() end end) end) end)
+        simple_row("Menu Key", function(row) local btn = Instance.new("TextButton") btn.Size = UDim2.fromOffset(80, 22) btn.Position = UDim2.new(1, -92, 0.5, -11) btn.BackgroundColor3 = C.panel2 btn.BorderSizePixel = 0 btn.Font = Enum.Font.Code btn.TextSize = baseFont - 1 btn.TextColor3 = C.text btn.Text = "[" .. config.menu_key .. "]" btn.AutoButtonColor = false btn.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 3) c.Parent = btn local s = Instance.new("UIStroke") s.Color = C.stroke s.Thickness = 1 s.Parent = btn btn.MouseButton1Click:Connect(function() if rebind_mode and rebind_mode.ref then rebind_mode.ref.Text = rebind_mode.__prev or rebind_mode.ref.Text end rebind_mode = {type="menu", ref=btn, __prev=btn.Text} btn.Text = "[...]" end) end)
+        simple_row("UI Scale", function(row) mini_slider(row, 0.7, 1.6, config.ui_scale, function(v) config.ui_scale = v uiScale.Scale = v schedule_save() end) end)
+        simple_row("Font Size", function(row) mini_slider(row, 0.7, 1.6, config.font_size/12, function(v) config.font_size = math.floor(12 * v) schedule_save() notify("font size - reopen to apply", accent()) end) end)
+        simple_row("Corner Radius", function(row) mini_slider(row, 0, 20, config.corner_radius/20, function(v) config.corner_radius = math.floor(v * 20) schedule_save() notify("radius - reopen to apply", accent()) end) end)
+        simple_row("Transparency", function(row) mini_slider(row, 0, 0.8, config.transparency, function(v) config.transparency = v main.BackgroundTransparency = v content.BackgroundTransparency = v schedule_save() end) end)
         simple_row("Notifications", function(row) local tog = Instance.new("TextButton") tog.Size = UDim2.fromOffset(36, 18) tog.Position = UDim2.new(1, -46, 0.5, -9) tog.BackgroundColor3 = config.notifications and accent() or C.off tog.BorderSizePixel = 0 tog.Text = "" tog.AutoButtonColor = false tog.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1,0) c.Parent = tog local knob = Instance.new("Frame") knob.Size = UDim2.fromOffset(14, 14) knob.Position = config.notifications and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = tog local kc = Instance.new("UICorner") kc.CornerRadius = UDim.new(1,0) kc.Parent = knob tog.MouseButton1Click:Connect(function() config.notifications = not config.notifications TweenService:Create(tog, TweenInfo.new(0.14), {BackgroundColor3 = config.notifications and accent() or C.off}):Play() local g = config.notifications and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) TweenService:Create(knob, TweenInfo.new(0.14), {Position = g}):Play() schedule_save() end) end)
+        simple_row("Animations", function(row) local tog = Instance.new("TextButton") tog.Size = UDim2.fromOffset(36, 18) tog.Position = UDim2.new(1, -46, 0.5, -9) tog.BackgroundColor3 = config.animations and accent() or C.off tog.BorderSizePixel = 0 tog.Text = "" tog.AutoButtonColor = false tog.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1,0) c.Parent = tog local knob = Instance.new("Frame") knob.Size = UDim2.fromOffset(14, 14) knob.Position = config.animations and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = tog local kc = Instance.new("UICorner") kc.CornerRadius = UDim.new(1,0) kc.Parent = knob tog.MouseButton1Click:Connect(function() config.animations = not config.animations TweenService:Create(tog, TweenInfo.new(0.14), {BackgroundColor3 = config.animations and accent() or C.off}):Play() local g = config.animations and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) TweenService:Create(knob, TweenInfo.new(0.14), {Position = g}):Play() schedule_save() end) end)
+
+        section("title text")
+        order += 1
+        local trow = Instance.new("Frame") trow.Size = UDim2.new(1, -6, 0, 34) trow.BackgroundColor3 = C.panel trow.BorderSizePixel = 0 trow.LayoutOrder = order trow.Parent = scroll
+        local trc = Instance.new("UICorner") trc.CornerRadius = UDim.new(0, 4) trc.Parent = trow
+        local trs = Instance.new("UIStroke") trs.Color = C.stroke trs.Thickness = 1 trs.Parent = trow
+        local tbox = Instance.new("TextBox") tbox.Size = UDim2.new(1, -24, 0, 24) tbox.Position = UDim2.fromOffset(12, 5) tbox.BackgroundColor3 = C.panel2 tbox.BorderSizePixel = 0 tbox.Font = Enum.Font.Code tbox.TextSize = baseFont tbox.TextColor3 = C.text tbox.TextXAlignment = Enum.TextXAlignment.Left tbox.PaddingLeft = UDim.new(0, 6) tbox.Text = config.title tbox.ClearTextOnFocus = false tbox.Parent = trow
+        local tbc2 = Instance.new("UICorner") tbc2.CornerRadius = UDim.new(0, 3) tbc2.Parent = tbox
+        local tbs2 = Instance.new("UIStroke") tbs2.Color = C.stroke tbs2.Thickness = 1 tbs2.Parent = tbox
+        tbox:GetPropertyChangedSignal("Text"):Connect(function()
+            config.title = tbox.Text
+            title.Text = tbox.Text
+            schedule_save()
+        end)
 
         section("theme presets")
         order += 1
-        local trow = Instance.new("Frame") trow.Size = UDim2.new(1, -6, 0, 34) trow.BackgroundTransparency = 1 trow.LayoutOrder = order trow.Parent = scroll
-        local tgrid = Instance.new("UIGridLayout") tgrid.CellSize = UDim2.new(0.5, -3, 0, 28) tgrid.CellPadding = UDim2.fromOffset(6, 6) tgrid.Parent = trow
-        for name, t in pairs(THEMES) do
-            local b = Instance.new("TextButton")
-            b.BackgroundColor3 = C.panel b.BorderSizePixel = 0 b.Font = Enum.Font.Code b.TextSize = 10
-            b.TextColor3 = arrToColor(t.accent) b.Text = name:gsub("_", " ") b.AutoButtonColor = false b.Parent = trow
+        local trow2 = Instance.new("Frame") trow2.Size = UDim2.new(1, -6, 0, 34) trow2.BackgroundTransparency = 1 trow2.LayoutOrder = order trow2.Parent = scroll
+        local tgrid = Instance.new("UIGridLayout") tgrid.CellSize = UDim2.new(0.5, -3, 0, 28) tgrid.CellPadding = UDim2.fromOffset(6, 6) tgrid.SortOrder = Enum.SortOrder.LayoutOrder tgrid.Parent = trow2
+        local tpresets = {"terminal_red","blood_moon","matrix_green","forest_dark","cyber_blue","ocean_deep","neon_cyan","ghost_purple","sakura_pink","sunset_gold","retro_amber","monochrome","void_black"}
+        local cell_count = 0
+        for _, name in ipairs(tpresets) do
+            cell_count += 1
+            local t = THEMES[name]
+            local b = Instance.new("TextButton") b.BackgroundColor3 = arrToColor(t.panel) b.BorderSizePixel = 0 b.Font = Enum.Font.Code b.TextSize = baseFont - 2 b.TextColor3 = arrToColor(t.accent) b.Text = name:gsub("_", " ") b.AutoButtonColor = false b.Parent = trow2 b.LayoutOrder = cell_count
             local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(0, 3) bc.Parent = b
             local bs = Instance.new("UIStroke") bs.Color = C.stroke bs.Thickness = 1 bs.Parent = b
             if name == config.theme then bs.Color = accent() bs.Thickness = 2 end
@@ -576,13 +648,53 @@ local function init_main_gui()
                 init_main_gui()
             end)
         end
+        trow2.Size = UDim2.new(1, -6, 0, math.ceil(cell_count/2) * 34)
 
-        section("custom accent")
+        section("custom accent (rgb)")
+        order += 1
+        local rgbrow = Instance.new("Frame") rgbrow.Size = UDim2.new(1, -6, 0, 100) rgbrow.BackgroundColor3 = C.panel rgbrow.BorderSizePixel = 0 rgbrow.LayoutOrder = order rgbrow.Parent = scroll
+        local rgc = Instance.new("UICorner") rgc.CornerRadius = UDim.new(0, 4) rgc.Parent = rgbrow
+        local rgs = Instance.new("UIStroke") rgs.Color = C.stroke rgs.Thickness = 1 rgs.Parent = rgbrow
+        local preview = Instance.new("Frame") preview.Size = UDim2.fromOffset(40, 40) preview.Position = UDim2.new(1, -50, 0, 5) preview.BackgroundColor3 = accent() preview.BorderSizePixel = 0 preview.Parent = rgbrow
+        local pgc = Instance.new("UICorner") pgc.CornerRadius = UDim.new(0, 4) pgc.Parent = preview
+        local pgs = Instance.new("UIStroke") pgs.Color = C.stroke pgs.Thickness = 1 pgs.Parent = preview
+
+        for ci, ch in ipairs({"R", "G", "B"}) do
+            local r = Instance.new("Frame") r.Size = UDim2.new(1, -60, 0, 28) r.Position = UDim2.fromOffset(6, 6 + (ci - 1) * 30) r.BackgroundTransparency = 1 r.Parent = rgbrow
+            local l = Instance.new("TextLabel") l.Size = UDim2.fromOffset(20, 28) l.BackgroundTransparency = 1 l.Font = Enum.Font.Code l.TextSize = baseFont - 2 l.TextColor3 = C.text_dim l.Text = ch l.TextXAlignment = Enum.TextXAlignment.Left l.Parent = r
+            local bar = Instance.new("Frame") bar.Size = UDim2.new(1, -60, 0, 8) bar.Position = UDim2.fromOffset(30, 10) bar.BackgroundColor3 = C.off bar.BorderSizePixel = 0 bar.Parent = r
+            local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(1,0) bc.Parent = bar
+            local ch_idx = ci
+            local a0 = config.accent[ch_idx] / 255
+            local fill = Instance.new("Frame") fill.Size = UDim2.new(a0, 0, 1, 0) fill.BackgroundColor3 = accent() fill.BorderSizePixel = 0 fill.Parent = bar
+            local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(1,0) fc.Parent = fill
+            local val = Instance.new("TextLabel") val.Size = UDim2.fromOffset(30, 28) val.Position = UDim2.new(1, -32, 0, 0) val.BackgroundTransparency = 1 val.Font = Enum.Font.Code val.TextSize = baseFont - 2 val.TextColor3 = accent() val.Text = tostring(config.accent[ch_idx]) val.TextXAlignment = Enum.TextXAlignment.Right val.Parent = r
+            r.InputBegan:Connect(function(input)
+                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+                local function upd()
+                    local mx = UserInputService:GetMouseLocation().X
+                    local ap, aw = bar.AbsolutePosition.X, bar.AbsoluteSize.X
+                    if aw <= 0 then return end
+                    local a = math.clamp((mx - ap) / aw, 0, 1)
+                    local v = math.floor(a * 255)
+                    config.accent[ch_idx] = v
+                    val.Text = tostring(v)
+                    fill.Size = UDim2.new(a, 0, 1, 0)
+                    preview.BackgroundColor3 = accent()
+                    schedule_save()
+                end
+                upd()
+                local c1 = UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then upd() end end)
+                local c2; c2 = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then c1:Disconnect() c2:Disconnect() end end)
+            end)
+        end
+
+        section("accent swatches")
         order += 1
         local arow = Instance.new("Frame") arow.Size = UDim2.new(1, -6, 0, 40) arow.BackgroundColor3 = C.panel arow.BorderSizePixel = 0 arow.LayoutOrder = order arow.Parent = scroll
         local arc = Instance.new("UICorner") arc.CornerRadius = UDim.new(0, 4) arc.Parent = arow
         local ars = Instance.new("UIStroke") ars.Color = C.stroke ars.Thickness = 1 ars.Parent = arow
-        local agrid = Instance.new("UIGridLayout") agrid.CellSize = UDim2.fromOffset(24, 24) agrid.CellPadding = UDim2.fromOffset(6, 6) agrid.Padding = UDim.new(0, 8) agrid.Parent = arow
+        local agrid = Instance.new("UIGridLayout") agrid.CellSize = UDim2.fromOffset(20, 20) agrid.CellPadding = UDim2.fromOffset(4, 4) agrid.Padding = UDim.new(0, 6) agrid.Parent = arow
         for _, sw in ipairs(SWATCHES) do
             local s = Instance.new("TextButton") s.BackgroundColor3 = arrToColor(sw) s.BorderSizePixel = 0 s.Text = "" s.AutoButtonColor = false s.Parent = arow
             local sc = Instance.new("UICorner") sc.CornerRadius = UDim.new(0, 4) sc.Parent = s
@@ -600,12 +712,16 @@ local function init_main_gui()
         section("actions")
         order += 1
         local brow = Instance.new("Frame") brow.Size = UDim2.new(1, -6, 0, 34) brow.BackgroundTransparency = 1 brow.LayoutOrder = order brow.Parent = scroll
-        local sb = Instance.new("TextButton") sb.Size = UDim2.new(0.5, -3, 1, 0) sb.BackgroundColor3 = C.panel sb.BorderSizePixel = 0 sb.Font = Enum.Font.Code sb.TextSize = 11 sb.TextColor3 = accent() sb.Text = "save config" sb.AutoButtonColor = false sb.Parent = brow
+        local sb = Instance.new("TextButton") sb.Size = UDim2.new(0.5, -3, 1, 0) sb.BackgroundColor3 = C.panel sb.BorderSizePixel = 0 sb.Font = Enum.Font.Code sb.TextSize = baseFont - 1 sb.TextColor3 = accent() sb.Text = "save config" sb.AutoButtonColor = false sb.Parent = brow
         local sbc = Instance.new("UICorner") sbc.CornerRadius = UDim.new(0, 4) sbc.Parent = sb local sbs = Instance.new("UIStroke") sbs.Color = C.stroke sbs.Thickness = 1 sbs.Parent = sb
         sb.MouseButton1Click:Connect(function() save_config() notify("saved", C.ok) end)
-        local rb = Instance.new("TextButton") rb.Size = UDim2.new(0.5, -3, 1, 0) rb.Position = UDim2.new(0.5, 3, 0, 0) rb.BackgroundColor3 = C.panel rb.BorderSizePixel = 0 rb.Font = Enum.Font.Code rb.TextSize = 11 rb.TextColor3 = C.danger rb.Text = "reset defaults" rb.AutoButtonColor = false rb.Parent = brow
+        local rb = Instance.new("TextButton") rb.Size = UDim2.new(0.5, -3, 1, 0) rb.Position = UDim2.new(0.5, 3, 0, 0) rb.BackgroundColor3 = C.panel rb.BorderSizePixel = 0 rb.Font = Enum.Font.Code rb.TextSize = baseFont - 1 rb.TextColor3 = C.danger rb.Text = "reset defaults" rb.AutoButtonColor = false rb.Parent = brow
         local rbc = Instance.new("UICorner") rbc.CornerRadius = UDim.new(0, 4) rbc.Parent = rb local rbs = Instance.new("UIStroke") rbs.Color = C.stroke rbs.Thickness = 1 rbs.Parent = rb
-        rb.MouseButton1Click:Connect(function() config.menu_key = "RightShift" config.accent = {200, 50, 50} config.ui_scale = 1 config.notifications = true config.theme = "terminal_red" config.title = "larp client" config.modules = {} local i = 0 for _, d in ipairs(defs) do i += 1 get_state(d.id).key = "F" .. i end apply_theme(config.theme) save_config() mainGui:Destroy() init_main_gui() end)
+        rb.MouseButton1Click:Connect(function()
+            config.menu_key = "RightShift" config.accent = {200, 50, 50} config.ui_scale = 1 config.notifications = true config.theme = "terminal_red" config.title = "larp client" config.font_size = 12 config.corner_radius = 6 config.transparency = 0 config.animations = true config.modules = {}
+            local i = 0 for _, d in ipairs(defs) do i += 1 get_state(d.id).key = "F" .. i end
+            apply_theme(config.theme) save_config() mainGui:Destroy() init_main_gui()
+        end)
     end
 
     local function clear_content()
@@ -625,7 +741,7 @@ local function init_main_gui()
             if query ~= "" then matches_query = string.find(string.lower(def.name), query, 1, true) ~= nil or string.find(string.lower(def.desc or ""), query, 1, true) ~= nil matches_tab = true end
             if matches_tab and matches_query then table.insert(shown, def) end
         end
-        if #shown == 0 then local empty = Instance.new("TextLabel") empty.Size = UDim2.new(1, -6, 0, 60) empty.BackgroundTransparency = 1 empty.Font = Enum.Font.Code empty.TextSize = 11 empty.TextColor3 = C.text_dim empty.Text = "no modules match" empty.LayoutOrder = 1 empty.Parent = scroll return end
+        if #shown == 0 then local empty = Instance.new("TextLabel") empty.Size = UDim2.new(1, -6, 0, 60) empty.BackgroundTransparency = 1 empty.Font = Enum.Font.Code empty.TextSize = baseFont - 1 empty.TextColor3 = C.text_dim empty.Text = "no modules match" empty.LayoutOrder = 1 empty.Parent = scroll return end
         local order = 0
         for _, def in ipairs(shown) do order += 1 build_row(def, order) end
         if active_tab == "Larping" then build_larping_extras() end
@@ -716,12 +832,10 @@ termInput.FocusLost:Connect(function(enterPressed)
         termGui:Destroy()
     else
         termInput.Text = ""
-        termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
-        termText.Text = termText.Text .. '\n<font color="#FF6666">Invalid input. Please type y or n.</font>'
-        termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
+        ffLine.Text = ffLine.Text .. ' <font color="#FF6666">(invalid - type y or n)</font>'
+        task.delay(2, function() ffLine.Text = '<font color="#FF6666">root@larpclient:~#</font> <font color="#FFAA88">fastfetch</font>' end)
     end
 end)
-
 task.wait(0.1)
 termInput:CaptureFocus()
 
@@ -803,8 +917,7 @@ local function setup_coin_trail(coin, col, lifetime)
     a1.Name = "larp_a1" a1.Position = Vector3.new(0, -1, 0)
     local trail = Instance.new("Trail")
     trail.Name = "larp_trail"
-    trail.Attachment0 = a0
-    trail.Attachment1 = a1
+    trail.Attachment0 = a0 trail.Attachment1 = a1
     trail.Lifetime = lifetime or 15
     trail.MinLength = 0.1
     trail.Color = ColorSequence.new(col)
@@ -818,22 +931,16 @@ RunService.Heartbeat:Connect(function()
 
     local st = get_state("speed")
     if st.enabled then hum.WalkSpeed = st.value or 34 else hum.WalkSpeed = 16 end
-
     st = get_state("fly")
     if st.enabled and not fly_conn then start_fly() elseif not st.enabled and fly_conn then stop_fly() end
-
     st = get_state("noclip")
     for _, part in ipairs(char:GetDescendants()) do if part:IsA("BasePart") and part.CanCollide ~= not st.enabled then part.CanCollide = not st.enabled end end
-
     st = get_state("jumppower")
     if st.enabled then hum.UseJumpPower = true hum.JumpPower = st.value or 50 end
-
     update_infinitejump(get_state("infinitejump").enabled)
-
     st = get_state("fov")
     local cam = workspace.CurrentCamera
     if st.enabled then cam.FieldOfView = st.value or 70 end
-
     st = get_state("fullbright")
     set_fullbright(st.enabled, st.value)
 
@@ -853,10 +960,8 @@ RunService.Heartbeat:Connect(function()
         end
     else clear_esp() end
 
-    st = get_state("healthhud")
-    health_lbl.Visible = st.enabled if st.enabled then health_lbl.TextColor3 = accent() health_lbl.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)) end
-    st = get_state("fpshud")
-    fps_lbl.Visible = st.enabled if st.enabled then fps_lbl.TextColor3 = accent() fps_lbl.Text = "FPS: " .. fps_count end
+    st = get_state("healthhud") health_lbl.Visible = st.enabled if st.enabled then health_lbl.TextColor3 = accent() health_lbl.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)) end
+    st = get_state("fpshud") fps_lbl.Visible = st.enabled if st.enabled then fps_lbl.TextColor3 = accent() fps_lbl.Text = "FPS: " .. fps_count end
 
     st = get_state("aimbot")
     if st.enabled then
@@ -869,8 +974,7 @@ RunService.Heartbeat:Connect(function()
                 if on_screen and (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude <= (st.fov or 120) then
                     if rmb_down then
                         local smooth = st.smooth or 6
-                        local goal = CFrame.new(cam.CFrame.Position, nhrp.Position)
-                        cam.CFrame = cam.CFrame:Lerp(goal, math.clamp(1 / smooth, 0, 1))
+                        cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, nhrp.Position), math.clamp(1 / smooth, 0, 1))
                     end
                 end
             end
@@ -893,18 +997,13 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- COIN AURA
     st = get_state("coinaura")
     local trail_st = get_state("cointrail")
     if st.enabled then
-        local count = st.count or 5
-        local radius = st.radius or 6
-        local speed = st.speed or 10
-        local height = st.height or 3
+        local count = st.count or 5 local radius = st.radius or 6 local speed = st.speed or 10 local height = st.height or 3
         local col = arrToColor(st.color or {60,180,255})
         local trail_col = arrToColor(trail_st.color or {60,180,255})
         local time = tick() * speed
-        -- grow pool
         while #larp_coins < count do
             local c = Instance.new("Part") c.Name = "larp_coin" c.Shape = Enum.PartType.Cylinder c.Size = Vector3.new(0.2, 2, 2) c.Color = col c.Material = Enum.Material.Neon c.Anchored = true c.CanCollide = false c.Parent = workspace
             table.insert(larp_coins, c)
@@ -915,16 +1014,11 @@ RunService.Heartbeat:Connect(function()
                 local angle = time + (i * math.pi * 2 / count)
                 local offset = Vector3.new(math.cos(angle) * radius, height, math.sin(angle) * radius)
                 local pos = hrp.Position + offset
-                local look = CFrame.lookAt(pos, cam.CFrame.Position)
-                c.CFrame = look * CFrame.Angles(math.pi/2, 0, 0)
-                -- trail management
+                c.CFrame = CFrame.lookAt(pos, cam.CFrame.Position) * CFrame.Angles(math.pi/2, 0, 0)
                 if trail_st.enabled then
                     if not c:FindFirstChild("larp_trail") then setup_coin_trail(c, trail_col, trail_st.lifetime) end
                     local tr = c:FindFirstChild("larp_trail")
-                    if tr then
-                        tr.Lifetime = trail_st.lifetime or 15
-                        tr.Color = ColorSequence.new(trail_col)
-                    end
+                    if tr then tr.Lifetime = trail_st.lifetime or 15 tr.Color = ColorSequence.new(trail_col) end
                 else
                     local tr = c:FindFirstChild("larp_trail") if tr then tr:Destroy() end
                 end
@@ -940,9 +1034,7 @@ RunService.Heartbeat:Connect(function()
     st = get_state("glow")
     if st.enabled and not larp_light then
         larp_light = Instance.new("PointLight") larp_light.Color = arrToColor({200, 50, 50}) larp_light.Range = 20 larp_light.Brightness = st.brightness or 3 larp_light.Parent = hrp
-    elseif not st.enabled and larp_light then
-        larp_light:Destroy() larp_light = nil
-    end
+    elseif not st.enabled and larp_light then larp_light:Destroy() larp_light = nil end
     if larp_light then larp_light.Brightness = st.brightness or 3 end
 end)
 
