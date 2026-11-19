@@ -1,4 +1,5 @@
--- larp_client.lua · v1.3
+-- larp_client.lua · v1.4
+-- terminal intro (movable, resizable, rich text colors) · main gui · larping tab
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
@@ -75,7 +76,9 @@ load_config()
 local C = {bg=Color3.fromRGB(16,16,20), panel=Color3.fromRGB(24,24,30), panel2=Color3.fromRGB(32,32,40), panel3=Color3.fromRGB(40,40,50), stroke=Color3.fromRGB(58,58,70), text=Color3.fromRGB(228,228,234), text_dim=Color3.fromRGB(140,140,152), off=Color3.fromRGB(70,70,82), danger=Color3.fromRGB(220,70,70), ok=Color3.fromRGB(90,210,120)}
 local function accent() return arrToColor(config.accent) end
 
+-- ============================================================
 -- TERMINAL INTRO
+-- ============================================================
 local termGui = Instance.new("ScreenGui")
 termGui.Name = "LarpTerminal"
 termGui.ResetOnSpawn = false
@@ -84,67 +87,191 @@ termGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 termGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local termFrame = Instance.new("Frame")
-termFrame.Size = UDim2.fromScale(1, 1)
+termFrame.Size = UDim2.fromOffset(680, 520)
+termFrame.Position = UDim2.new(0.5, -340, 0.5, -260)
 termFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+termFrame.BackgroundTransparency = 0.15 -- Slight transparency
 termFrame.BorderSizePixel = 0
+termFrame.ClipsDescendants = true
+termFrame.Active = true
 termFrame.Parent = termGui
 
+local termCorner = Instance.new("UICorner") termCorner.CornerRadius = UDim.new(0, 6) termCorner.Parent = termFrame
+local termStroke = Instance.new("UIStroke") termStroke.Color = Color3.fromRGB(80, 20, 20) termStroke.Thickness = 1 termStroke.Parent = termFrame
+
+-- Title bar for terminal
+local termTitlebar = Instance.new("Frame")
+termTitlebar.Size = UDim2.new(1, 0, 0, 30)
+termTitlebar.BackgroundColor3 = Color3.fromRGB(20, 10, 10)
+termTitlebar.BorderSizePixel = 0
+termTitlebar.Parent = termFrame
+local ttbC = Instance.new("UICorner") ttbC.CornerRadius = UDim.new(0, 6) ttbC.Parent = termTitlebar
+local ttbMask = Instance.new("Frame") ttbMask.Size = UDim2.new(1, 0, 0, 15) ttbMask.Position = UDim2.new(0, 0, 1, -15) ttbMask.BackgroundColor3 = Color3.fromRGB(20, 10, 10) ttbMask.BorderSizePixel = 0 ttbMask.Parent = termTitlebar
+
+local termTitleText = Instance.new("TextLabel")
+termTitleText.BackgroundTransparency = 1
+termTitleText.Position = UDim2.fromOffset(12, 0)
+termTitleText.Size = UDim2.new(1, -40, 1, 0)
+termTitleText.Font = Enum.Font.Code
+termTitleText.TextSize = 12
+termTitleText.TextColor3 = Color3.fromRGB(200, 50, 50)
+termTitleText.TextXAlignment = Enum.TextXAlignment.Left
+termTitleText.Text = "root@larpclient:~"
+termTitleText.Parent = termTitlebar
+
+local termClose = Instance.new("TextButton")
+termClose.Size = UDim2.fromOffset(20, 20) termClose.Position = UDim2.new(1, -26, 0, 5)
+termClose.BackgroundColor3 = Color3.fromRGB(40, 10, 10) termClose.BorderSizePixel = 0
+termClose.Font = Enum.Font.Code termClose.TextSize = 12 termClose.TextColor3 = Color3.fromRGB(200, 100, 100) termClose.Text = "x" termClose.AutoButtonColor = false
+termClose.Parent = termTitlebar
+local tcC = Instance.new("UICorner") tcC.CornerRadius = UDim.new(0, 4) tcC.Parent = termClose
+termClose.MouseButton1Click:Connect(function() termGui:Destroy() end)
+
+-- Terminal Scroll/Text area
+local termScroll = Instance.new("ScrollingFrame")
+termScroll.Size = UDim2.new(1, -20, 1, -80)
+termScroll.Position = UDim2.fromOffset(10, 40)
+termScroll.BackgroundTransparency = 1
+termScroll.BorderSizePixel = 0
+termScroll.ScrollBarThickness = 3
+termScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 50, 50)
+termScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+termScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+termScroll.Parent = termFrame
+
+local asciiArt = [[
+                                              @@%%%%%%%%%%%%%%@@                
+                                           @%%%%%%%%%%%%%%%%%%%%%%@             
+                                         @%%%%%%%%%%%%%%%%%%%%%%%%%%@           
+                                       @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@         
+                                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@       
+                                    @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@      
+                                   @%%%%%%%%%%%%%%%       @%%%%%%%%%%%%%%%@     
+                                   %%%%%%%%%%%%%%%%       %%%%%%%%%%%%%%%%%@    
+                                  %%%%%%%%%%%%%%%%@      @%%%%%%%%%%%%%%%%%%    
+                                 @%%%%%%%%%%%%%%%%       %%%%%%%%%%%%%%%%%%%%   
+                                 %%%%%%%%%%%%%%%%@      @%%%%%%%%%%%%%%%%%%%%   
+                                 %%%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%@  
+                                @%%%%%%%%%%%%%%%@         @%%%%%%%%%%%%%%%%%%@  
+                                @%%%%%%%%%%%%%@        @%%%%%%%%%%%%%%%%%%%%%@  
+                                 %%%%%%%%%%%%@         %%%%%%%%%%%%%%%%%%%%%%@  
+                                 %%%%%%%%%%%%@@       @%%%%%%%%%%%%%%%%%%%%%%   
+                                 @%%%%%%%%%%%%%       @@@@@@@@@@@%%%%%%%%%%%%   
+                                  %%%%%%%%%%%%@                  %%%%%%%%%%%    
+                                  @%%%%%%%%%%%                  @%%%%%%%%%%@    
+                                   @%%%%%%%%%%@@@@@@@@@@@@@@@@@@%%%%%%%%%%%     
+                                    @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      
+                                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@       
+                                       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@        
+                                         %%%%%%%%%%%%%%%%%%%%%%%%%%%%@          
+                                           @%%%%%%%%%%%%%%%%%%%%%%%@            
+                                              @%%%%%%%%%%%%%%%%@                
+                                                   @@@@@@@@                     
+]]
+
+local termSpecs = [[
+OS: Larp Client 1.4.0 x86_64
+Host: Larp Station (LARP-1337)
+Kernel: 6.9.0-larp-generic
+Uptime: 1337 hours, 42 mins
+Packages: 1337 (dpkg), 1 (roblox)
+Shell: bash 5.2.15
+Resolution: 1920x1080 @ 144hz
+WM: LarpWM (X11)
+Theme: Yaru-dark
+
+root@larpclient:~# fastfetch
+root@larpclient:~# Do you want to proceed? (y/n)
+]]
+
 local termText = Instance.new("TextLabel")
-termText.Size = UDim2.new(1, -40, 1, -100)
-termText.Position = UDim2.fromOffset(20, 20)
+termText.Size = UDim2.new(1, 0, 0, 0)
 termText.BackgroundTransparency = 1
 termText.Font = Enum.Font.Code
-termText.TextSize = 13
+termText.TextSize = 11
 termText.TextColor3 = Color3.new(1, 1, 1)
 termText.TextXAlignment = Enum.TextXAlignment.Left
 termText.TextYAlignment = Enum.TextYAlignment.Top
-termText.Text = [[
-root@larpclient:~# fastfetch
+termText.RichText = true
+termText.Text = string.format(
+    '<font color="#8B0000">%s</font>\n<font color="#FF6666">%s</font>',
+    asciiArt, termSpecs
+)
+termText.Parent = termScroll
 
-                                                       OS: Larp Client 1.3.0 x86_64
-                    @@%%%%%%%%%%%%%%@@                 Host: Larp Station (LARP-1330)
-                 @%%%%%%%%%%%%%%%%%%%%%%@              Kernel: 1.3.0-larp-generic
-               @%%%%%%%%%%%%%%%%%%%%%%%%%%@            Uptime: 67 hours, 01 mins
-             @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@          Packages: 1330 (dpkg), 1 (roblox)
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@        Shell: zsh 5.2.15
-          @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@      Resolution: 1920x1080 @ 60hz
-         @%%%%%%%%%%%%%%%       @%%%%%%%%%%%%%%%@     WM: LarpWM (X11)
-         %%%%%%%%%%%%%%%%       %%%%%%%%%%%%%%%%%@    Theme: Yaru-dark
-        %%%%%%%%%%%%%%%%@      @%%%%%%%%%%%%%%%%%%    
-       @%%%%%%%%%%%%%%%%       %%%%%%%%%%%%%%%%%%%%   
-       %%%%%%%%%%%%%%%%@      @%%%%%%%%%%%%%%%%%%%%   
-       %%%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%@  
-      @%%%%%%%%%%%%%%%@         @%%%%%%%%%%%%%%%%%%@  
-      @%%%%%%%%%%%%%@        @%%%%%%%%%%%%%%%%%%%%%@  
-       %%%%%%%%%%%%@         %%%%%%%%%%%%%%%%%%%%%%@  
-       %%%%%%%%%%%%@@       @%%%%%%%%%%%%%%%%%%%%%%   
-       @%%%%%%%%%%%%%       @@@@@@@@@@@%%%%%%%%%%%%   
-        %%%%%%%%%%%%@                  %%%%%%%%%%%    
-        @%%%%%%%%%%%                  @%%%%%%%%%%@    
-         @%%%%%%%%%%@@@@@@@@@@@@@@@@@@%%%%%%%%%%%     
-          @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@       
-             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@        
-               %%%%%%%%%%%%%%%%%%%%%%%%%%%%@          
-                 @%%%%%%%%%%%%%%%%%%%%%%%@            
-                    @%%%%%%%%%%%%%%%%@                
-                         @@@@@@@@                     
-
-root@larpclient:~# Do you want to proceed? (y/n)_
-]]
-termText.Parent = termFrame
+local termInputPrompt = Instance.new("TextLabel")
+termInputPrompt.Size = UDim2.fromOffset(120, 20)
+termInputPrompt.Position = UDim2.new(0, 10, 1, -35)
+termInputPrompt.BackgroundTransparency = 1
+termInputPrompt.Font = Enum.Font.Code
+termInputPrompt.TextSize = 12
+termInputPrompt.TextColor3 = Color3.fromRGB(255, 100, 100)
+termInputPrompt.TextXAlignment = Enum.TextXAlignment.Left
+termInputPrompt.Text = "root@larpclient:~#"
+termInputPrompt.Parent = termFrame
 
 local termInput = Instance.new("TextBox")
-termInput.Size = UDim2.fromOffset(200, 30)
-termInput.Position = UDim2.new(0, 20, 1, -60)
+termInput.Size = UDim2.new(1, -140, 0, 20)
+termInput.Position = UDim2.new(0, 130, 1, -35)
 termInput.BackgroundTransparency = 1
 termInput.Font = Enum.Font.Code
-termInput.TextSize = 14
-termInput.TextColor3 = Color3.new(1, 1, 1)
+termInput.TextSize = 12
+termInput.TextColor3 = Color3.fromRGB(255, 150, 150)
 termInput.Text = ""
 termInput.TextXAlignment = Enum.TextXAlignment.Left
 termInput.ClearTextOnFocus = false
+termInput.PlaceholderText = "type y or n and press enter..."
+termInput.PlaceholderColor3 = Color3.fromRGB(100, 50, 50)
 termInput.Parent = termFrame
+
+-- Resize Handle (bottom right)
+local termResize = Instance.new("TextButton")
+termResize.Size = UDim2.fromOffset(16, 16)
+termResize.Position = UDim2.new(1, -16, 1, -16)
+termResize.BackgroundTransparency = 1
+termResize.Text = "//"
+termResize.TextColor3 = Color3.fromRGB(100, 50, 50)
+termResize.Font = Enum.Font.Code
+termResize.TextSize = 12
+termResize.Parent = termFrame
+
+-- Terminal Drag Logic
+local termDragging, termDragStart, termStartPos
+termTitlebar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        termDragging = true
+        termDragStart = input.Position
+        termStartPos = termFrame.Position
+    end
+end)
+-- Terminal Resize Logic
+local termResizing, termResizeStart, termSizeStart
+termResize.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        termResizing = true
+        termResizeStart = input.Position
+        termSizeStart = termFrame.Size
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if termDragging then
+            local delta = input.Position - termDragStart
+            termFrame.Position = UDim2.new(termStartPos.X.Scale, termStartPos.X.Offset + delta.X, termStartPos.Y.Scale, termStartPos.Y.Offset + delta.Y)
+        elseif termResizing then
+            local delta = input.Position - termResizeStart
+            local newWidth = math.max(400, termSizeStart.X.Offset + delta.X)
+            local newHeight = math.max(300, termSizeStart.Y.Offset + delta.Y)
+            termFrame.Size = UDim2.fromOffset(newWidth, newHeight)
+        end
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        termDragging = false
+        termResizing = false
+    end
+end)
 
 local mainGui = nil
 
@@ -190,7 +317,7 @@ local function init_main_gui()
     local ver = Instance.new("TextLabel")
     ver.BackgroundTransparency = 1 ver.Position = UDim2.new(1, -160, 0, 0) ver.Size = UDim2.fromOffset(80, 34)
     ver.Font = Enum.Font.Code ver.TextSize = 11 ver.TextColor3 = C.text_dim ver.TextXAlignment = Enum.TextXAlignment.Right
-    ver.Text = "v1.3" ver.Parent = titlebar
+    ver.Text = "v1.4" ver.Parent = titlebar
 
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.fromOffset(22, 22) closeBtn.Position = UDim2.new(1, -32, 0, 6)
@@ -546,7 +673,6 @@ local function init_main_gui()
     apply_accent_everywhere()
     rebuild_content()
 
-    -- Accessory Functions defined inside so they can use `notify`
     function give_accessory(id)
         local ok, model = pcall(function() return InsertService:LoadAsset(id) end)
         if ok and model then
@@ -603,10 +729,12 @@ termInput.FocusLost:Connect(function(enterPressed)
         termGui:Destroy()
     else
         termInput.Text = ""
-        termText.Text = termText.Text:gsub("root@larpclient:~# Do you want to proceed%? %(y/n%)\n?$", "")
-        termText.Text = termText.Text .. "root@larpclient:~# Do you want to proceed? (y/n)_\nInvalid input. Please type y or n.\nroot@larpclient:~# Do you want to proceed? (y/n)_\n"
+        termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
+        -- Append error message to the terminal text
+        termText.Text = termText.Text .. '\n<font color="#FF6666">Invalid input. Please type y or n.</font>'
     end
 end)
+
 task.wait(0.1)
 termInput:CaptureFocus()
 
