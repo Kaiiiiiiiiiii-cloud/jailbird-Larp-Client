@@ -1,5 +1,5 @@
--- larp_client.lua · v1.7
--- combat overhaul · connection fix · optimized loops · enhanced UI
+-- larp_client.lua · v1.8
+-- fatal syntax fix · fully resizable main gui · advanced customization · gradients
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
@@ -117,7 +117,8 @@ end
 local config = {
     menu_key="RightShift", accent={200,50,50}, ui_scale=1, notifications=true,
     theme="terminal_red", title="larp client", font_size=12, corner_radius=6,
-    transparency=0, animations=true, modules={}
+    transparency=0, animations=true, sidebar_width=130, topbar_height=34,
+    show_search=true, show_status=true, show_watermark=true, modules={}
 }
 local function get_state(id) if not config.modules[id] then config.modules[id] = module_default(id) end return config.modules[id] end
 do local i = 0 for _, def in ipairs(defs) do i += 1 local st = get_state(def.id) if st.key == "" then st.key = "F" .. i end end end
@@ -226,7 +227,7 @@ local asciiArt=[[
 local asciiTrimmed = trim_ascii(asciiArt)
 
 local termSpecs=[[
-OS: Larp Client 1.7.0 x86_64
+OS: Larp Client 1.8.0 x86_64
 Host: Larp Station (LARP-1337)
 Kernel: 6.9.0-larp-generic
 Uptime: 1337 hours, 42 mins
@@ -269,7 +270,7 @@ end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then termDragging=false termResizing=false end end)
 
 -- ═══════════════════════════════════════════
--- CONNECTION TRACKING (fixes stacking on theme change)
+-- CONNECTION TRACKING
 -- ═══════════════════════════════════════════
 local main_conns = {}
 local function track(c) table.insert(main_conns, c); return c end
@@ -279,23 +280,19 @@ local function untrack_all()
 end
 
 -- ═══════════════════════════════════════════
--- OVERLAY (FOV circle + crosshair)
+-- OVERLAYS (FOV + Crosshair + Watermark)
 -- ═══════════════════════════════════════════
 local overlay = Instance.new("ScreenGui") overlay.Name="LarpOverlay" overlay.ResetOnSpawn=false overlay.IgnoreGuiInset=true overlay.Parent=LocalPlayer:WaitForChild("PlayerGui")
 
 local fov_circle = Instance.new("Frame")
-fov_circle.AnchorPoint=Vector2.new(0.5,0.5)
-fov_circle.Position=UDim2.fromScale(0.5,0.5)
-fov_circle.Size=UDim2.fromOffset(2,2)
-fov_circle.BackgroundTransparency=1
-fov_circle.BorderSizePixel=0
-fov_circle.Visible=false
+fov_circle.AnchorPoint=Vector2.new(0.5,0.5) fov_circle.Position=UDim2.fromScale(0.5,0.5) fov_circle.Size=UDim2.fromOffset(2,2) fov_circle.BackgroundTransparency=1 fov_circle.BorderSizePixel=0 fov_circle.Visible=false fov_circle.Parent=overlay
 local fov_corner=Instance.new("UICorner") fov_corner.CornerRadius=UDim.new(0.5,0) fov_corner.Parent=fov_circle
 local fov_stroke=Instance.new("UIStroke") fov_stroke.Color=Color3.fromRGB(255,80,80) fov_stroke.Thickness=2 fov_stroke.Transparency=0.4 fov_stroke.Parent=fov_circle
-fov_circle.Parent=overlay
 
 local ch_h=Instance.new("Frame") ch_h.AnchorPoint=Vector2.new(0.5,0.5) ch_h.Position=UDim2.fromScale(0.5,0.5) ch_h.Size=UDim2.fromOffset(10,2) ch_h.BackgroundColor3=Color3.new(1,1,1) ch_h.BorderSizePixel=0 ch_h.Visible=false ch_h.Parent=overlay
 local ch_v=Instance.new("Frame") ch_v.AnchorPoint=Vector2.new(0.5,0.5) ch_v.Position=UDim2.fromScale(0.5,0.5) ch_v.Size=UDim2.fromOffset(2,10) ch_v.BackgroundColor3=Color3.new(1,1,1) ch_v.BorderSizePixel=0 ch_v.Visible=false ch_v.Parent=overlay
+
+local watermark=Instance.new("TextLabel") watermark.Size=UDim2.fromOffset(200,20) watermark.Position=UDim2.fromOffset(20,20) watermark.BackgroundTransparency=1 watermark.Font=Enum.Font.Code watermark.TextSize=14 watermark.TextColor3=Color3.fromRGB(255,255,255) watermark.TextXAlignment=Enum.TextXAlignment.Left watermark.Text="larp client • RightShift" watermark.Visible=false watermark.Parent=overlay
 
 -- ═══════════════════════════════════════════
 -- MAIN GUI
@@ -311,15 +308,19 @@ local function init_main_gui()
     main.BackgroundColor3=C.bg main.BackgroundTransparency=config.transparency or 0 main.BorderSizePixel=0 main.ClipsDescendants=true main.Active=true main.Parent=mainGui
     local mc=Instance.new("UICorner") mc.CornerRadius=UDim.new(0,config.corner_radius or 6) mc.Parent=main
     local ms=Instance.new("UIStroke") ms.Color=C.stroke ms.Thickness=1 ms.Parent=main
+    local mg=Instance.new("UIGradient") mg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,C.bg),ColorSequenceKeypoint.new(1,C.panel)}) mg.Parent=main
 
     local uiScale=Instance.new("UIScale") uiScale.Scale=config.ui_scale uiScale.Parent=main
     local baseFont = config.font_size or 12
+    local topH = config.topbar_height or 34
+    local sideW = config.sidebar_width or 130
 
-    local titlebar=Instance.new("Frame") titlebar.Size=UDim2.new(1,0,0,34) titlebar.BackgroundColor3=C.panel titlebar.BorderSizePixel=0 titlebar.Parent=main
+    local titlebar=Instance.new("Frame") titlebar.Size=UDim2.new(1,0,0,topH) titlebar.BackgroundColor3=C.panel titlebar.BorderSizePixel=0 titlebar.Parent=main
     local tbc=Instance.new("UICorner") tbc.CornerRadius=UDim.new(0,config.corner_radius or 6) tbc.Parent=titlebar
-    local tbm=Instance.new("Frame") tbm.Size=UDim2.new(1,0,0,17) tbm.Position=UDim2.new(0,0,1,-17) tbm.BackgroundColor3=C.panel tbm.BorderSizePixel=0 tbm.Parent=titlebar
+    local tbm=Instance.new("Frame") tbm.Size=UDim2.new(1,0,0,topH/2) tbm.Position=UDim2.new(0,0,1,-topH/2) tbm.BackgroundColor3=C.panel tbm.BorderSizePixel=0 tbm.Parent=titlebar
+    local tg=Instance.new("UIGradient") tg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,C.panel2),ColorSequenceKeypoint.new(1,C.panel)}) tg.Parent=titlebar
 
-    local logo=Instance.new("Frame") logo.Size=UDim2.fromOffset(8,8) logo.Position=UDim2.fromOffset(12,13) logo.BackgroundColor3=accent() logo.BorderSizePixel=0 logo.Parent=titlebar
+    local logo=Instance.new("Frame") logo.Size=UDim2.fromOffset(8,8) logo.Position=UDim2.fromOffset(12,topH/2-4) logo.BackgroundColor3=accent() logo.BorderSizePixel=0 logo.Parent=titlebar
     local lc=Instance.new("UICorner") lc.CornerRadius=UDim.new(1,0) lc.Parent=logo
     local logoGlow=Instance.new("ImageLabel") logoGlow.Size=UDim2.fromOffset(30,30) logoGlow.Position=UDim2.fromOffset(-11,-11) logoGlow.BackgroundTransparency=1 logoGlow.Image="rbxassetid://5028857472" logoGlow.ImageColor3=accent() logoGlow.ImageTransparency=0.3 logoGlow.ZIndex=0 logoGlow.Parent=logo
     if config.animations then
@@ -335,16 +336,17 @@ local function init_main_gui()
 
     local title=Instance.new("TextLabel") title.BackgroundTransparency=1 title.Position=UDim2.fromOffset(28,0) title.Size=UDim2.new(1,-180,1,0) title.Font=Enum.Font.Code title.TextSize=baseFont+2 title.TextXAlignment=Enum.TextXAlignment.Left title.TextColor3=accent() title.Text=config.title title.Parent=titlebar
 
-    local ver=Instance.new("TextLabel") ver.BackgroundTransparency=1 ver.Position=UDim2.new(1,-160,0,0) ver.Size=UDim2.fromOffset(80,34) ver.Font=Enum.Font.Code ver.TextSize=baseFont-1 ver.TextColor3=C.text_dim ver.TextXAlignment=Enum.TextXAlignment.Right ver.Text="v1.7" ver.Parent=titlebar
+    local ver=Instance.new("TextLabel") ver.BackgroundTransparency=1 ver.Position=UDim2.new(1,-160,0,0) ver.Size=UDim2.fromOffset(80,topH) ver.Font=Enum.Font.Code ver.TextSize=baseFont-1 ver.TextColor3=C.text_dim ver.TextXAlignment=Enum.TextXAlignment.Right ver.Text="v1.8" ver.Parent=titlebar
 
-    local closeBtn=Instance.new("TextButton") closeBtn.Size=UDim2.fromOffset(22,22) closeBtn.Position=UDim2.new(1,-32,0,6) closeBtn.BackgroundColor3=C.panel2 closeBtn.BorderSizePixel=0 closeBtn.Font=Enum.Font.Code closeBtn.TextSize=baseFont+2 closeBtn.TextColor3=C.text_dim closeBtn.Text="x" closeBtn.AutoButtonColor=false closeBtn.Parent=titlebar
+    local closeBtn=Instance.new("TextButton") closeBtn.Size=UDim2.fromOffset(22,22) closeBtn.Position=UDim2.new(1,-32,0,topH/2-11) closeBtn.BackgroundColor3=C.panel2 closeBtn.BorderSizePixel=0 closeBtn.Font=Enum.Font.Code closeBtn.TextSize=baseFont+2 closeBtn.TextColor3=C.text_dim closeBtn.Text="x" closeBtn.AutoButtonColor=false closeBtn.Parent=titlebar
     local cbc=Instance.new("UICorner") cbc.CornerRadius=UDim.new(0,4) cbc.Parent=closeBtn
     closeBtn.MouseEnter:Connect(function() TweenService:Create(closeBtn,TweenInfo.new(0.12),{BackgroundColor3=C.danger,TextColor3=Color3.new(1,1,1)}):Play() end)
     closeBtn.MouseLeave:Connect(function() TweenService:Create(closeBtn,TweenInfo.new(0.12),{BackgroundColor3=C.panel2,TextColor3=C.text_dim}):Play() end)
     closeBtn.MouseButton1Click:Connect(function() mainGui.Enabled=false end)
 
-    local sidebar=Instance.new("Frame") sidebar.Size=UDim2.new(0,130,1,-60) sidebar.Position=UDim2.new(0,0,0,34) sidebar.BackgroundColor3=C.panel sidebar.BorderSizePixel=0 sidebar.Parent=main
+    local sidebar=Instance.new("Frame") sidebar.Size=UDim2.new(0,sideW,1,-topH-(config.show_status and 26 or 0)) sidebar.Position=UDim2.new(0,0,0,topH) sidebar.BackgroundColor3=C.panel sidebar.BorderSizePixel=0 sidebar.Parent=main
     local sbs=Instance.new("UIStroke") sbs.Color=C.stroke sbs.Thickness=1 sbs.Parent=sidebar
+    local sg=Instance.new("UIGradient") sg.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,C.panel2),ColorSequenceKeypoint.new(1,C.panel)}) sg.Rotation=90 sg.Parent=sidebar
 
     local tabs={"Combat","Movement","Render","Larping","Player","Settings"}
     local active_tab="Combat"
@@ -354,7 +356,7 @@ local function init_main_gui()
     local tpad=Instance.new("UIPadding") tpad.PaddingTop=UDim.new(0,8) tpad.PaddingLeft=UDim.new(0,8) tpad.PaddingRight=UDim.new(0,8) tpad.Parent=sidebar
 
     for i,name in ipairs(tabs) do
-        local btn=Instance.new("TextButton") btn.Size=UDim2.new(1,0,0,30) btn.BackgroundColor3=(name==active_tab) and C.panel2 or C.panel btn.BorderSizePixel=0 btn.Font=Enum.Font.Code btn.TextSize=baseFont btn.TextColor3=(name==active_tab) and accent() or C.text_dim btn.TextXAlignment=Enum.TextXAlignment.Left btn.Text="  "..name btn.AutoButtonColor=false btn.LayoutOrder=i btn.Parent=sidebar
+        local btn=Instance.new("TextButton") btn.Size=UDim2.new(1,0,0,30) btn.BackgroundColor3=(name==active_tab) and C.panel2 or C.panel btn.BackgroundTransparency=(name==active_tab) and 0 or 0.5 btn.BorderSizePixel=0 btn.Font=Enum.Font.Code btn.TextSize=baseFont btn.TextColor3=(name==active_tab) and accent() or C.text_dim btn.TextXAlignment=Enum.TextXAlignment.Left btn.Text="  "..name btn.AutoButtonColor=false btn.LayoutOrder=i btn.Parent=sidebar
         local bc=Instance.new("UICorner") bc.CornerRadius=UDim.new(0,4) bc.Parent=btn
         local bar=Instance.new("Frame") bar.Size=UDim2.new(0,2,1,-10) bar.Position=UDim2.new(0,0,0,5) bar.BackgroundColor3=accent() bar.BorderSizePixel=0 bar.Visible=(name==active_tab) bar.Parent=btn
         tab_refs[name]={btn=btn,bar=bar}
@@ -362,19 +364,21 @@ local function init_main_gui()
         btn.MouseLeave:Connect(function() if active_tab~=name then TweenService:Create(btn,TweenInfo.new(0.1),{BackgroundColor3=C.panel,TextColor3=C.text_dim}):Play() end end)
     end
 
-    local content=Instance.new("Frame") content.Size=UDim2.new(1,-130,1,-60) content.Position=UDim2.new(0,130,0,34) content.BackgroundColor3=C.bg content.BackgroundTransparency=config.transparency or 0 content.BorderSizePixel=0 content.Parent=main
+    local content=Instance.new("Frame") content.Size=UDim2.new(1,-sideW,1,-topH-(config.show_status and 26 or 0)) content.Position=UDim2.new(0,sideW,0,topH) content.BackgroundColor3=C.bg content.BackgroundTransparency=config.transparency or 0 content.BorderSizePixel=0 content.Parent=main
 
-    local search_wrap=Instance.new("Frame") search_wrap.Size=UDim2.new(1,-16,0,30) search_wrap.Position=UDim2.fromOffset(8,8) search_wrap.BackgroundColor3=C.panel search_wrap.BorderSizePixel=0 search_wrap.Parent=content
+    local search_wrap=Instance.new("Frame") search_wrap.Size=UDim2.new(1,-16,0,30) search_wrap.Position=UDim2.fromOffset(8,8) search_wrap.BackgroundColor3=C.panel search_wrap.BorderSizePixel=0 search_wrap.Visible=config.show_search search_wrap.Parent=content
     local swc=Instance.new("UICorner") swc.CornerRadius=UDim.new(0,4) swc.Parent=search_wrap
     local sws=Instance.new("UIStroke") sws.Color=C.stroke sws.Thickness=1 sws.Parent=search_wrap
     local search_icon=Instance.new("TextLabel") search_icon.BackgroundTransparency=1 search_icon.Position=UDim2.fromOffset(8,0) search_icon.Size=UDim2.fromOffset(20,30) search_icon.Font=Enum.Font.Code search_icon.TextSize=baseFont+1 search_icon.TextColor3=C.text_dim search_icon.Text="/" search_icon.Parent=search_wrap
 
     local search_box=Instance.new("TextBox") search_box.BackgroundTransparency=1 search_box.Position=UDim2.fromOffset(28,0) search_box.Size=UDim2.new(1,-36,1,0) search_box.Font=Enum.Font.Code search_box.TextSize=baseFont search_box.TextColor3=C.text search_box.TextXAlignment=Enum.TextXAlignment.Left search_box.PlaceholderText="search modules..." search_box.PlaceholderColor3=C.text_dim search_box.Text="" search_box.ClearTextOnFocus=false search_box.Parent=search_wrap
 
-    local scroll=Instance.new("ScrollingFrame") scroll.Size=UDim2.new(1,-16,1,-46) scroll.Position=UDim2.fromOffset(8,44) scroll.BackgroundTransparency=1 scroll.BorderSizePixel=0 scroll.ScrollBarThickness=3 scroll.ScrollBarImageColor3=accent() scroll.CanvasSize=UDim2.new(0,0,0,0) scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y scroll.Parent=content
+    local scrollY = config.show_search and 44 or 8
+    local scrollH = config.show_search and (1 - (44 + (config.show_status and 26 or 0))/460) or (1 - (8 + (config.show_status and 26 or 0))/460)
+    local scroll=Instance.new("ScrollingFrame") scroll.Size=UDim2.new(1,-16,scrollH,config.show_status and -26 or 0) scroll.Position=UDim2.fromOffset(8,scrollY) scroll.BackgroundTransparency=1 scroll.BorderSizePixel=0 scroll.ScrollBarThickness=3 scroll.ScrollBarImageColor3=accent() scroll.CanvasSize=UDim2.new(0,0,0,0) scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y scroll.Parent=content
     local sl=Instance.new("UIListLayout") sl.Padding=UDim.new(0,6) sl.SortOrder=Enum.SortOrder.LayoutOrder sl.Parent=scroll
 
-    local statusbar=Instance.new("Frame") statusbar.Size=UDim2.new(1,0,0,26) statusbar.Position=UDim2.new(0,0,1,-26) statusbar.BackgroundColor3=C.panel statusbar.BorderSizePixel=0 statusbar.Parent=main
+    local statusbar=Instance.new("Frame") statusbar.Size=UDim2.new(1,0,0,26) statusbar.Position=UDim2.new(0,0,1,-26) statusbar.BackgroundColor3=C.panel statusbar.BorderSizePixel=0 statusbar.Visible=config.show_status statusbar.Parent=main
     local sts=Instance.new("UIStroke") sts.Color=C.stroke sts.Thickness=1 sts.Parent=statusbar
     local status_left=Instance.new("TextLabel") status_left.BackgroundTransparency=1 status_left.Position=UDim2.fromOffset(10,0) status_left.Size=UDim2.new(1,-100,1,0) status_left.Font=Enum.Font.Code status_left.TextSize=baseFont-1 status_left.TextXAlignment=Enum.TextXAlignment.Left status_left.TextColor3=C.text_dim status_left.Text="user: "..LocalPlayer.Name status_left.Parent=statusbar
     local status_right=Instance.new("TextLabel") status_right.BackgroundTransparency=1 status_right.Position=UDim2.new(1,-80,0,0) status_right.Size=UDim2.fromOffset(70,26) status_right.Font=Enum.Font.Code status_right.TextSize=baseFont-1 status_right.TextXAlignment=Enum.TextXAlignment.Right status_right.TextColor3=accent() status_right.Text="ready" status_right.Parent=statusbar
@@ -642,8 +646,31 @@ local function init_main_gui()
         simple_row("Font Size",function(row) mini_slider(row,0.7,1.6,(config.font_size or 12)/12,function(v) config.font_size=math.floor(12*v) schedule_save() notify("reopen to apply",accent()) end) end)
         simple_row("Corner Radius",function(row) mini_slider(row,0,20,(config.corner_radius or 6)/20,function(v) config.corner_radius=math.floor(v*20) schedule_save() notify("reopen to apply",accent()) end) end)
         simple_row("Transparency",function(row) mini_slider(row,0,0.8,config.transparency or 0,function(v) config.transparency=v main.BackgroundTransparency=v content.BackgroundTransparency=v schedule_save() end) end)
-        simple_row("Notifications",function(row) local tog=Instance.new("TextButton") tog.Size=UDim2.fromOffset(36,18) tog.Position=UDim2.new(1,-46,0.5,-9) tog.BackgroundColor3=config.notifications and accent() or C.off tog.BorderSizePixel=0 tog.Text="" tog.AutoButtonColor=false tog.Parent=row local c=Instance.new("UICorner") c.CornerRadius=UDim.new(1,0) c.Parent=tog local knob=Instance.new("Frame") knob.Size=UDim2.fromOffset(14,14) knob.Position=config.notifications and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7) knob.BackgroundColor3=Color3.new(1,1,1) knob.BorderSizePixel=0 knob.Parent=tog local kc=Instance.new("UICorner") kc.CornerRadius=UDim.new(1,0) kc.Parent=knob tog.MouseButton1Click:Connect(function() config.notifications=not config.notifications TweenService:Create(tog,TweenInfo.new(0.14),{BackgroundColor3=config.notifications and accent() or C.off}):Play() local g=config.notifications and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7) TweenService:Create(knob,TweenInfo.new(0.14),{Position=g}):Play() schedule_save() end) end)
-        simple_row("Animations",function(row) local tog=Instance.new("TextButton") tog.Size=UDim2.fromOffset(36,18) tog.Position=UDim2.new(1,-46,0.5,-9) tog.BackgroundColor3=config.animations and accent() or C.off tog.BorderSizePixel=0 tog.Text="" tog.AutoButtonColor=false tog.Parent=row local c=Instance.new("UICorner") c.CornerRadius=UDim.new(1,0) c.Parent=tog local knob=Instance.new("Frame") knob.Size=UDim2.fromOffset(14,14) knob.Position=config.animations and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7) knob.BackgroundColor3=Color3.new(1,1,1) knob.BorderSizePixel=0 knob.Parent=tog local kc=Instance.new("UICorner") kc.CornerRadius=UDim.new(1,0) kc.Parent=knob tog.MouseButton1Click:Connect(function() config.animations=not config.animations TweenService:Create(tog,TweenInfo.new(0.14),{BackgroundColor3=config.animations and accent() or C.off}):Play() local g=config.animations and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7) TweenService:Create(knob,TweenInfo.new(0.14),{Position=g}):Play() schedule_save() end) end)
+        simple_row("Sidebar Width",function(row) mini_slider(row,80,250,(config.sidebar_width or 130)/250,function(v) config.sidebar_width=math.floor(v*250) schedule_save() notify("reopen to apply",accent()) end) end)
+        simple_row("Topbar Height",function(row) mini_slider(row,24,60,(config.topbar_height or 34)/60,function(v) config.topbar_height=math.floor(v*60) schedule_save() notify("reopen to apply",accent()) end) end)
+
+        section("toggles")
+        local function toggle_row(label, key, callback)
+            simple_row(label, function(row)
+                local tog=Instance.new("TextButton") tog.Size=UDim2.fromOffset(36,18) tog.Position=UDim2.new(1,-46,0.5,-9) tog.BackgroundColor3=config[key] and accent() or C.off tog.BorderSizePixel=0 tog.Text="" tog.AutoButtonColor=false tog.Parent=row
+                local c=Instance.new("UICorner") c.CornerRadius=UDim.new(1,0) c.Parent=tog
+                local knob=Instance.new("Frame") knob.Size=UDim2.fromOffset(14,14) knob.Position=config[key] and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7) knob.BackgroundColor3=Color3.new(1,1,1) knob.BorderSizePixel=0 knob.Parent=tog
+                local kc=Instance.new("UICorner") kc.CornerRadius=UDim.new(1,0) kc.Parent=knob
+                tog.MouseButton1Click:Connect(function()
+                    config[key]=not config[key]
+                    TweenService:Create(tog,TweenInfo.new(0.14),{BackgroundColor3=config[key] and accent() or C.off}):Play()
+                    local g=config[key] and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7)
+                    TweenService:Create(knob,TweenInfo.new(0.14),{Position=g}):Play()
+                    schedule_save()
+                    if callback then callback(config[key]) end
+                end)
+            end)
+        end
+        toggle_row("Notifications","notifications")
+        toggle_row("Animations","animations")
+        toggle_row("Show Search Bar","show_search", function(v) notify("reopen to apply",accent()) end)
+        toggle_row("Show Status Bar","show_status", function(v) notify("reopen to apply",accent()) end)
+        toggle_row("Show Watermark","show_watermark", function(v) watermark.Visible = v and not mainGui.Enabled end)
 
         section("title text")
         order+=1
@@ -734,7 +761,7 @@ local function init_main_gui()
         local rbc=Instance.new("UICorner") rbc.CornerRadius=UDim.new(0,4) rbc.Parent=rb
         local rbs=Instance.new("UIStroke") rbs.Color=C.stroke rbs.Thickness=1 rbs.Parent=rb
         rb.MouseButton1Click:Connect(function()
-            config.menu_key="RightShift" config.accent={200,50,50} config.ui_scale=1 config.notifications=true config.theme="terminal_red" config.title="larp client" config.font_size=12 config.corner_radius=6 config.transparency=0 config.animations=true config.modules={}
+            config.menu_key="RightShift" config.accent={200,50,50} config.ui_scale=1 config.notifications=true config.theme="terminal_red" config.title="larp client" config.font_size=12 config.corner_radius=6 config.transparency=0 config.animations=true config.sidebar_width=130 config.topbar_height=34 config.show_search=true config.show_status=true config.show_watermark=true config.modules={}
             local i=0 for _,d in ipairs(defs) do i+=1 get_state(d.id).key="F"..i end
             apply_theme(config.theme) save_config() mainGui:Destroy() init_main_gui()
         end)
@@ -747,7 +774,7 @@ local function init_main_gui()
 
     local function rebuild_content()
         clear_content()
-        search_wrap.Visible=(active_tab~="Settings")
+        search_wrap.Visible=(active_tab~="Settings") and config.show_search
         if active_tab=="Settings" then build_settings_tab() return end
         local query=string.lower(search_box.Text or "")
         local shown={}
@@ -785,6 +812,20 @@ local function init_main_gui()
     track(UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then local d=input.Position-drag_start main.Position=UDim2.new(start_pos.X.Scale,start_pos.X.Offset+d.X,start_pos.Y.Scale,start_pos.Y.Offset+d.Y) end end))
     track(UserInputService.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=false end end))
 
+    -- Main GUI Resize Handle
+    local main_resize=Instance.new("TextButton")
+    main_resize.Size=UDim2.fromOffset(16,16) main_resize.Position=UDim2.new(1,-16,1,-16) main_resize.BackgroundTransparency=1 main_resize.Text="//" main_resize.TextColor3=C.text_dim main_resize.Font=Enum.Font.Code main_resize.TextSize=10 main_resize.Parent=main
+    
+    local resizing, resize_start, size_start
+    main_resize.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=true resize_start=input.Position size_start=main.Size end end)
+    track(UserInputService.InputChanged:Connect(function(input)
+        if resizing and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
+            local d=input.Position-resize_start
+            main.Size=UDim2.fromOffset(math.max(400,size_start.X.Offset+d.X), math.max(300,size_start.Y.Offset+d.Y))
+        end
+    end))
+    track(UserInputService.InputEnded:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=false end end))
+
     local function finish_rebind(keyname)
         if not rebind_mode then return end
         local mode=rebind_mode rebind_mode=nil
@@ -798,7 +839,11 @@ local function init_main_gui()
         if UserInputService:GetFocusedTextBox() then return end
         if rebind_mode then if input.KeyCode~=Enum.KeyCode.Unknown then finish_rebind(input.KeyCode.Name) end return end
         if gpe then return end
-        if input.KeyCode.Name==config.menu_key then mainGui.Enabled=not mainGui.Enabled return end
+        if input.KeyCode.Name==config.menu_key then 
+            mainGui.Enabled=not mainGui.Enabled 
+            if config.show_watermark then watermark.Visible = not mainGui.Enabled else watermark.Visible = false end
+            return 
+        end
         for _,def in ipairs(defs) do
             local st=get_state(def.id)
             if st.key~="" and st.key==input.KeyCode.Name then
@@ -837,8 +882,12 @@ end
 termInput.FocusLost:Connect(function(enterPressed)
     if not enterPressed then return end
     local txt=string.lower(termInput.Text)
-    if txt=="y" then termGui:Destroy() init_main_gui()
-    elseif txt=="n" then termGui:Destroy()
+    if txt=="y" then 
+        termGui:Destroy() 
+        init_main_gui()
+        if config.show_watermark then watermark.Visible = false end
+    elseif txt=="n" then 
+        termGui:Destroy() 
     else
         termInput.Text=""
         ffLine.Text='<font color="#FF6666">root@larpclient:~#</font> <font color="#FFAA88">fastfetch</font> <font color="#FF8888">(invalid - type y or n)</font>'
@@ -849,7 +898,7 @@ task.wait(0.1)
 termInput:CaptureFocus()
 
 -- ═══════════════════════════════════════════
--- SHARED STATE
+-- SHARED STATE & RUNTIMES
 -- ═══════════════════════════════════════════
 local esp_folder=Instance.new("Folder") esp_folder.Name="larp_esp" esp_folder.Parent=workspace
 local esp_cache={}
@@ -946,7 +995,7 @@ local function find_target(st,cfg_require_aim,cam)
                     local aim_part=get_aim_part(p.Character,st.part)
                     if aim_part then
                         local dist=(aim_part.Position-my_hrp.Position).Magnitude
-                        if dist<=（st.range or 500) then -- fix full-width paren below
+                        if dist <= (st.range or 500) then
                             local aim_pos=aim_part.Position
                             if st.prediction and st.prediction>0 then
                                 local vel=aim_part.AssemblyLinearVelocity or Vector3.zero
