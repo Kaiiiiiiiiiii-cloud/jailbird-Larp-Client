@@ -1311,9 +1311,4 @@ task.spawn(function()
     end
 end)
 
-LocalPlayer.CharacterRemoving:Connect(function()
-    stop_fly() clear_esp()
-    for _,c in ipairs(larp_coins) do c:Destroy() end larp_coins={}
-    if larp_light then larp_light:Destroy() larp_light=nil end
-    noclip_parts={} noclip_prev=false
-end)
+LocalPlayer.CharacterRemoving:Connect(function() stop_fly() clear_esp() for _, c in ipairs(larp_coins) do c:Destroy() end larp_coins = {} if larp_light then larp_light:Destroy() larp_light = nil end end)
