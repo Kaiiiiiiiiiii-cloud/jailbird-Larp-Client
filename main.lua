@@ -1,5 +1,5 @@
--- larp_client.lua · v1.4
--- terminal intro (movable, resizable, rich text colors) · main gui · larping tab
+-- larp_client.lua · v1.5
+-- terminal fix · theme system · coin trails · red/black main gui
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
@@ -12,14 +12,8 @@ local LocalPlayer       = Players.LocalPlayer
 
 local CONFIG_FILE = "larp_client_config.json"
 
-local function deepcopy(v)
-    if type(v) ~= "table" then return v end
-    local o = {} for k, vv in pairs(v) do o[k] = deepcopy(vv) end return o
-end
+local function deepcopy(v) if type(v) ~= "table" then return v end local o = {} for k, vv in pairs(v) do o[k] = deepcopy(vv) end return o end
 local function arrToColor(a) return Color3.fromRGB(a[1] or 0, a[2] or 0, a[3] or 0) end
-local function scaleColor(a, s)
-    return Color3.fromRGB(math.clamp(math.floor((a[1] or 0) * s), 0, 255), math.clamp(math.floor((a[2] or 0) * s), 0, 255), math.clamp(math.floor((a[3] or 0) * s), 0, 255))
-end
 
 local defs = {
     {id="aimbot", tab="Combat", name="Aimbot", desc="Locks camera to nearest target. Hold RMB.", settings={{type="slider", id="fov", label="FOV (deg)", min=10, max=360, default=120},{type="slider", id="smooth", label="Smoothing", min=1, max=30, default=6},{type="slider", id="range", label="Max Range", min=50, max=2000, default=500}}},
@@ -37,24 +31,38 @@ local defs = {
     {id="fullbright", tab="Render",   name="Fullbright", desc="Brightens the map.", settings={{type="slider", id="value", label="Brightness", min=1, max=10, default=3}}},
     {id="fov",        tab="Render",   name="FOV", desc="Changes camera field of view.", settings={{type="slider", id="value", label="FOV", min=40, max=120, default=70}}},
     {id="coinaura",   tab="Larping",  name="Coin Aura", desc="Spinning LTC coins orbit you.", settings={{type="slider", id="count", label="Coin Count", min=1, max=20, default=5},{type="slider", id="radius", label="Radius (studs)", min=2, max=25, default=6},{type="slider", id="speed", label="Spin Speed", min=1, max=40, default=10},{type="slider", id="height", label="Height", min=0, max=15, default=3},{type="color", id="color", label="Coin Color", default={60,180,255}}}},
-    {id="playertrail",tab="Larping",  name="Blue Trail", desc="Blue particle trail behind you.", settings={{type="slider", id="lifetime", label="Lifetime", min=1, max=30, default=15},{type="color", id="color", label="Color", default={60,180,255}}}},
+    {id="cointrail",  tab="Larping",  name="Coin Trail", desc="Trails attached to each coin (needs Coin Aura).", settings={{type="slider", id="lifetime", label="Lifetime", min=1, max=30, default=15},{type="color", id="color", label="Trail Color", default={60,180,255}}}},
     {id="glow",       tab="Larping",  name="Player Glow", desc="Blue point light on you.", settings={{type="slider", id="brightness", label="Brightness", min=1, max=10, default=3}}},
     {id="antiafk",    tab="Player", name="Anti AFK", desc="Prevents idle kick."},
     {id="healthhud",  tab="Player", name="Health Overlay", desc="Shows your HP."},
     {id="fpshud",     tab="Player", name="FPS Counter", desc="Shows frames per second."},
 }
 
-local function module_default(id)
-    local d = {enabled=false, key=""}
-    for _, def in ipairs(defs) do
-        if def.id == id then for _, s in ipairs(def.settings or {}) do d[s.id] = deepcopy(s.default) end break end
-    end
-    return d
-end
+local function module_default(id) local d = {enabled=false, key=""} for _, def in ipairs(defs) do if def.id == id then for _, s in ipairs(def.settings or {}) do d[s.id] = deepcopy(s.default) end break end end return d end
 
-local config = {menu_key = "RightShift", accent = {0, 200, 130}, ui_scale = 1, notifications = true, modules = {}}
+local config = {menu_key = "RightShift", accent = {200, 50, 50}, ui_scale = 1, notifications = true, theme = "terminal_red", title = "larp client", modules = {}}
 local function get_state(id) if not config.modules[id] then config.modules[id] = module_default(id) end return config.modules[id] end
 do local i = 0 for _, def in ipairs(defs) do i += 1 local st = get_state(def.id) if st.key == "" then st.key = "F" .. i end end end
+
+-- THEME PALETTES
+local THEMES = {
+    terminal_red  = {bg={8,4,4},     panel={20,10,10},   panel2={32,16,16},   panel3={42,22,22},   stroke={90,30,30},   text={240,200,200}, text_dim={160,90,90},  off={60,30,30},  accent={200,50,50}},
+    matrix_green  = {bg={2,8,2},     panel={8,20,8},     panel2={14,32,14},   panel3={20,42,20},   stroke={40,90,40},   text={200,240,200}, text_dim={80,150,80},  off={30,60,30},  accent={60,220,90}},
+    cyber_blue    = {bg={2,4,10},    panel={10,18,32},   panel2={16,28,48},   panel3={22,38,60},   stroke={40,80,140},  text={200,220,240}, text_dim={90,130,180}, off={30,45,70},  accent={60,180,255}},
+    ghost_purple  = {bg={6,2,10},    panel={20,10,30},   panel2={30,15,45},   panel3={42,22,60},   stroke={90,40,130},  text={220,200,240}, text_dim={140,100,180},off={50,30,70},  accent={170,100,255}},
+    monochrome    = {bg={10,10,10},  panel={20,20,20},   panel2={32,32,32},   panel3={42,42,42},   stroke={70,70,70},   text={240,240,240}, text_dim={140,140,140},off={50,50,50},  accent={220,220,220}},
+    void_black    = {bg={0,0,0},     panel={10,10,10},   panel2={18,18,18},   panel3={26,26,26},   stroke={40,40,40},   text={220,220,220}, text_dim={120,120,120},off={40,40,40},  accent={255,255,255}},
+}
+
+local C = {}
+local function apply_theme(name)
+    local t = THEMES[name] or THEMES.terminal_red
+    for k, v in pairs(t) do C[k] = arrToColor(v) end
+    C.danger = arrToColor({220,70,70})
+    C.ok     = arrToColor({90,210,120})
+end
+apply_theme(config.theme or "terminal_red")
+local function accent() return arrToColor(config.accent) end
 
 local function load_config()
     if not (isfile and readfile) then return end
@@ -62,19 +70,19 @@ local function load_config()
     if not ok or not raw or raw == "" then return end
     local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
     if not ok2 or type(data) ~= "table" then return end
-    config.menu_key = data.menu_key or config.menu_key
-    config.accent = data.accent or config.accent
-    config.ui_scale = data.ui_scale or config.ui_scale
+    config.menu_key      = data.menu_key or config.menu_key
+    config.accent        = data.accent or config.accent
+    config.ui_scale      = data.ui_scale or config.ui_scale
     config.notifications = (data.notifications ~= nil) and data.notifications or true
+    config.theme         = data.theme or config.theme
+    config.title         = data.title or config.title
     if type(data.modules) == "table" then for _, def in ipairs(defs) do local saved = data.modules[def.id] if type(saved) == "table" then local st = get_state(def.id) for k, v in pairs(saved) do st[k] = v end end end end
 end
 local function save_config() if not writefile then return end pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode(config)) end) end
 local save_pending = false
 local function schedule_save() if save_pending then return end save_pending = true task.delay(1, function() save_pending = false save_config() end) end
 load_config()
-
-local C = {bg=Color3.fromRGB(16,16,20), panel=Color3.fromRGB(24,24,30), panel2=Color3.fromRGB(32,32,40), panel3=Color3.fromRGB(40,40,50), stroke=Color3.fromRGB(58,58,70), text=Color3.fromRGB(228,228,234), text_dim=Color3.fromRGB(140,140,152), off=Color3.fromRGB(70,70,82), danger=Color3.fromRGB(220,70,70), ok=Color3.fromRGB(90,210,120)}
-local function accent() return arrToColor(config.accent) end
+apply_theme(config.theme or "terminal_red")
 
 -- ============================================================
 -- TERMINAL INTRO
@@ -87,10 +95,10 @@ termGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 termGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local termFrame = Instance.new("Frame")
-termFrame.Size = UDim2.fromOffset(680, 520)
-termFrame.Position = UDim2.new(0.5, -340, 0.5, -260)
+termFrame.Size = UDim2.fromOffset(760, 560)
+termFrame.Position = UDim2.new(0.5, -380, 0.5, -280)
 termFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-termFrame.BackgroundTransparency = 0.15 -- Slight transparency
+termFrame.BackgroundTransparency = 0.15
 termFrame.BorderSizePixel = 0
 termFrame.ClipsDescendants = true
 termFrame.Active = true
@@ -99,7 +107,6 @@ termFrame.Parent = termGui
 local termCorner = Instance.new("UICorner") termCorner.CornerRadius = UDim.new(0, 6) termCorner.Parent = termFrame
 local termStroke = Instance.new("UIStroke") termStroke.Color = Color3.fromRGB(80, 20, 20) termStroke.Thickness = 1 termStroke.Parent = termFrame
 
--- Title bar for terminal
 local termTitlebar = Instance.new("Frame")
 termTitlebar.Size = UDim2.new(1, 0, 0, 30)
 termTitlebar.BackgroundColor3 = Color3.fromRGB(20, 10, 10)
@@ -109,15 +116,9 @@ local ttbC = Instance.new("UICorner") ttbC.CornerRadius = UDim.new(0, 6) ttbC.Pa
 local ttbMask = Instance.new("Frame") ttbMask.Size = UDim2.new(1, 0, 0, 15) ttbMask.Position = UDim2.new(0, 0, 1, -15) ttbMask.BackgroundColor3 = Color3.fromRGB(20, 10, 10) ttbMask.BorderSizePixel = 0 ttbMask.Parent = termTitlebar
 
 local termTitleText = Instance.new("TextLabel")
-termTitleText.BackgroundTransparency = 1
-termTitleText.Position = UDim2.fromOffset(12, 0)
-termTitleText.Size = UDim2.new(1, -40, 1, 0)
-termTitleText.Font = Enum.Font.Code
-termTitleText.TextSize = 12
-termTitleText.TextColor3 = Color3.fromRGB(200, 50, 50)
-termTitleText.TextXAlignment = Enum.TextXAlignment.Left
-termTitleText.Text = "root@larpclient:~"
-termTitleText.Parent = termTitlebar
+termTitleText.BackgroundTransparency = 1 termTitleText.Position = UDim2.fromOffset(12, 0) termTitleText.Size = UDim2.new(1, -40, 1, 0)
+termTitleText.Font = Enum.Font.Code termTitleText.TextSize = 12 termTitleText.TextColor3 = Color3.fromRGB(200, 50, 50)
+termTitleText.TextXAlignment = Enum.TextXAlignment.Left termTitleText.Text = "root@larpclient:~" termTitleText.Parent = termTitlebar
 
 local termClose = Instance.new("TextButton")
 termClose.Size = UDim2.fromOffset(20, 20) termClose.Position = UDim2.new(1, -26, 0, 5)
@@ -127,7 +128,6 @@ termClose.Parent = termTitlebar
 local tcC = Instance.new("UICorner") tcC.CornerRadius = UDim.new(0, 4) tcC.Parent = termClose
 termClose.MouseButton1Click:Connect(function() termGui:Destroy() end)
 
--- Terminal Scroll/Text area
 local termScroll = Instance.new("ScrollingFrame")
 termScroll.Size = UDim2.new(1, -20, 1, -80)
 termScroll.Position = UDim2.fromOffset(10, 40)
@@ -135,7 +135,7 @@ termScroll.BackgroundTransparency = 1
 termScroll.BorderSizePixel = 0
 termScroll.ScrollBarThickness = 3
 termScroll.ScrollBarImageColor3 = Color3.fromRGB(200, 50, 50)
-termScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+termScroll.CanvasSize = UDim2.new(0, 760, 0, 0)
 termScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 termScroll.Parent = termFrame
 
@@ -170,7 +170,7 @@ local asciiArt = [[
 ]]
 
 local termSpecs = [[
-OS: Larp Client 1.4.0 x86_64
+OS: Larp Client 1.5.0 x86_64
 Host: Larp Station (LARP-1337)
 Kernel: 6.9.0-larp-generic
 Uptime: 1337 hours, 42 mins
@@ -178,25 +178,25 @@ Packages: 1337 (dpkg), 1 (roblox)
 Shell: bash 5.2.15
 Resolution: 1920x1080 @ 144hz
 WM: LarpWM (X11)
-Theme: Yaru-dark
+Theme: Larp Dark Red
 
 root@larpclient:~# fastfetch
 root@larpclient:~# Do you want to proceed? (y/n)
 ]]
 
+-- TextLabel with automatic Y sizing so the art renders
 local termText = Instance.new("TextLabel")
-termText.Size = UDim2.new(1, 0, 0, 0)
+termText.Size = UDim2.fromOffset(740, 0)
+termText.Position = UDim2.fromOffset(0, 0)
+termText.AutomaticSize = Enum.AutomaticSize.Y
 termText.BackgroundTransparency = 1
 termText.Font = Enum.Font.Code
 termText.TextSize = 11
-termText.TextColor3 = Color3.new(1, 1, 1)
 termText.TextXAlignment = Enum.TextXAlignment.Left
 termText.TextYAlignment = Enum.TextYAlignment.Top
+termText.TextWrapped = false
 termText.RichText = true
-termText.Text = string.format(
-    '<font color="#8B0000">%s</font>\n<font color="#FF6666">%s</font>',
-    asciiArt, termSpecs
-)
+termText.Text = string.format('<font color="#8B0000">%s</font>\n<font color="#FF6666">%s</font>', asciiArt, termSpecs)
 termText.Parent = termScroll
 
 local termInputPrompt = Instance.new("TextLabel")
@@ -224,7 +224,6 @@ termInput.PlaceholderText = "type y or n and press enter..."
 termInput.PlaceholderColor3 = Color3.fromRGB(100, 50, 50)
 termInput.Parent = termFrame
 
--- Resize Handle (bottom right)
 local termResize = Instance.new("TextButton")
 termResize.Size = UDim2.fromOffset(16, 16)
 termResize.Position = UDim2.new(1, -16, 1, -16)
@@ -235,22 +234,17 @@ termResize.Font = Enum.Font.Code
 termResize.TextSize = 12
 termResize.Parent = termFrame
 
--- Terminal Drag Logic
+-- Terminal drag/resize
 local termDragging, termDragStart, termStartPos
 termTitlebar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termDragging = true
-        termDragStart = input.Position
-        termStartPos = termFrame.Position
+        termDragging = true; termDragStart = input.Position; termStartPos = termFrame.Position
     end
 end)
--- Terminal Resize Logic
 local termResizing, termResizeStart, termSizeStart
 termResize.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termResizing = true
-        termResizeStart = input.Position
-        termSizeStart = termFrame.Size
+        termResizing = true; termResizeStart = input.Position; termSizeStart = termFrame.Size
     end
 end)
 UserInputService.InputChanged:Connect(function(input)
@@ -260,21 +254,21 @@ UserInputService.InputChanged:Connect(function(input)
             termFrame.Position = UDim2.new(termStartPos.X.Scale, termStartPos.X.Offset + delta.X, termStartPos.Y.Scale, termStartPos.Y.Offset + delta.Y)
         elseif termResizing then
             local delta = input.Position - termResizeStart
-            local newWidth = math.max(400, termSizeStart.X.Offset + delta.X)
-            local newHeight = math.max(300, termSizeStart.Y.Offset + delta.Y)
-            termFrame.Size = UDim2.fromOffset(newWidth, newHeight)
+            termFrame.Size = UDim2.fromOffset(math.max(400, termSizeStart.X.Offset + delta.X), math.max(300, termSizeStart.Y.Offset + delta.Y))
         end
     end
 end)
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        termDragging = false
-        termResizing = false
+        termDragging = false; termResizing = false
     end
 end)
 
 local mainGui = nil
 
+-- ============================================================
+-- MAIN GUI
+-- ============================================================
 local function init_main_gui()
     mainGui = Instance.new("ScreenGui")
     mainGui.Name = "LarpClient"
@@ -299,10 +293,7 @@ local function init_main_gui()
     uiScale.Parent = main
 
     local titlebar = Instance.new("Frame")
-    titlebar.Size = UDim2.new(1, 0, 0, 34)
-    titlebar.BackgroundColor3 = C.panel
-    titlebar.BorderSizePixel = 0
-    titlebar.Parent = main
+    titlebar.Size = UDim2.new(1, 0, 0, 34) titlebar.BackgroundColor3 = C.panel titlebar.BorderSizePixel = 0 titlebar.Parent = main
     local tbc = Instance.new("UICorner") tbc.CornerRadius = UDim.new(0, 6) tbc.Parent = titlebar
     local tbm = Instance.new("Frame") tbm.Size = UDim2.new(1, 0, 0, 17) tbm.Position = UDim2.new(0, 0, 1, -17) tbm.BackgroundColor3 = C.panel tbm.BorderSizePixel = 0 tbm.Parent = titlebar
 
@@ -312,26 +303,23 @@ local function init_main_gui()
     local title = Instance.new("TextLabel")
     title.BackgroundTransparency = 1 title.Position = UDim2.fromOffset(28, 0) title.Size = UDim2.new(1, -180, 1, 0)
     title.Font = Enum.Font.Code title.TextSize = 14 title.TextXAlignment = Enum.TextXAlignment.Left
-    title.TextColor3 = C.text title.Text = "larp client" title.Parent = titlebar
+    title.TextColor3 = accent() title.Text = config.title title.Parent = titlebar
 
     local ver = Instance.new("TextLabel")
     ver.BackgroundTransparency = 1 ver.Position = UDim2.new(1, -160, 0, 0) ver.Size = UDim2.fromOffset(80, 34)
     ver.Font = Enum.Font.Code ver.TextSize = 11 ver.TextColor3 = C.text_dim ver.TextXAlignment = Enum.TextXAlignment.Right
-    ver.Text = "v1.4" ver.Parent = titlebar
+    ver.Text = "v1.5" ver.Parent = titlebar
 
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.fromOffset(22, 22) closeBtn.Position = UDim2.new(1, -32, 0, 6)
-    closeBtn.BackgroundColor3 = C.panel2 closeBtn.BorderSizePixel = 0
-    closeBtn.Font = Enum.Font.Code closeBtn.TextSize = 14 closeBtn.TextColor3 = C.text_dim closeBtn.Text = "x" closeBtn.AutoButtonColor = false
-    closeBtn.Parent = titlebar
+    closeBtn.Size = UDim2.fromOffset(22, 22) closeBtn.Position = UDim2.new(1, -32, 0, 6) closeBtn.BackgroundColor3 = C.panel2 closeBtn.BorderSizePixel = 0
+    closeBtn.Font = Enum.Font.Code closeBtn.TextSize = 14 closeBtn.TextColor3 = C.text_dim closeBtn.Text = "x" closeBtn.AutoButtonColor = false closeBtn.Parent = titlebar
     local cbc = Instance.new("UICorner") cbc.CornerRadius = UDim.new(0, 4) cbc.Parent = closeBtn
     closeBtn.MouseEnter:Connect(function() TweenService:Create(closeBtn, TweenInfo.new(0.12), {BackgroundColor3=C.danger, TextColor3=Color3.new(1,1,1)}):Play() end)
     closeBtn.MouseLeave:Connect(function() TweenService:Create(closeBtn, TweenInfo.new(0.12), {BackgroundColor3=C.panel2, TextColor3=C.text_dim}):Play() end)
     closeBtn.MouseButton1Click:Connect(function() mainGui.Enabled = false end)
 
     local sidebar = Instance.new("Frame")
-    sidebar.Size = UDim2.new(0, 130, 1, -60) sidebar.Position = UDim2.new(0, 0, 0, 34)
-    sidebar.BackgroundColor3 = C.panel sidebar.BorderSizePixel = 0 sidebar.Parent = main
+    sidebar.Size = UDim2.new(0, 130, 1, -60) sidebar.Position = UDim2.new(0, 0, 0, 34) sidebar.BackgroundColor3 = C.panel sidebar.BorderSizePixel = 0 sidebar.Parent = main
     local sbs = Instance.new("UIStroke") sbs.Color = C.stroke sbs.Thickness = 1 sbs.Parent = sidebar
 
     local tabs = {"Combat", "Movement", "Render", "Larping", "Player", "Settings"}
@@ -349,20 +337,17 @@ local function init_main_gui()
         btn.TextXAlignment = Enum.TextXAlignment.Left btn.Text = "  " .. name btn.AutoButtonColor = false
         btn.LayoutOrder = i btn.Parent = sidebar
         local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(0, 4) bc.Parent = btn
-        local bar = Instance.new("Frame") bar.Size = UDim2.new(0, 2, 1, -10) bar.Position = UDim2.new(0, 0, 0, 5)
-        bar.BackgroundColor3 = accent() bar.BorderSizePixel = 0 bar.Visible = (name == active_tab) bar.Parent = btn
+        local bar = Instance.new("Frame") bar.Size = UDim2.new(0, 2, 1, -10) bar.Position = UDim2.new(0, 0, 0, 5) bar.BackgroundColor3 = accent() bar.BorderSizePixel = 0 bar.Visible = (name == active_tab) bar.Parent = btn
         tab_refs[name] = {btn=btn, bar=bar}
         btn.MouseEnter:Connect(function() if active_tab ~= name then TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3=C.panel2, TextColor3=C.text}):Play() end end)
         btn.MouseLeave:Connect(function() if active_tab ~= name then TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3=C.panel, TextColor3=C.text_dim}):Play() end end)
     end
 
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -130, 1, -60) content.Position = UDim2.new(0, 130, 0, 34)
-    content.BackgroundColor3 = C.bg content.BorderSizePixel = 0 content.Parent = main
+    content.Size = UDim2.new(1, -130, 1, -60) content.Position = UDim2.new(0, 130, 0, 34) content.BackgroundColor3 = C.bg content.BorderSizePixel = 0 content.Parent = main
 
     local search_wrap = Instance.new("Frame")
-    search_wrap.Size = UDim2.new(1, -16, 0, 30) search_wrap.Position = UDim2.fromOffset(8, 8)
-    search_wrap.BackgroundColor3 = C.panel search_wrap.BorderSizePixel = 0 search_wrap.Parent = content
+    search_wrap.Size = UDim2.new(1, -16, 0, 30) search_wrap.Position = UDim2.fromOffset(8, 8) search_wrap.BackgroundColor3 = C.panel search_wrap.BorderSizePixel = 0 search_wrap.Parent = content
     local swc = Instance.new("UICorner") swc.CornerRadius = UDim.new(0, 4) swc.Parent = search_wrap
     local sws = Instance.new("UIStroke") sws.Color = C.stroke sws.Thickness = 1 sws.Parent = search_wrap
 
@@ -372,19 +357,15 @@ local function init_main_gui()
     local search_box = Instance.new("TextBox")
     search_box.BackgroundTransparency = 1 search_box.Position = UDim2.fromOffset(28, 0) search_box.Size = UDim2.new(1, -36, 1, 0)
     search_box.Font = Enum.Font.Code search_box.TextSize = 12 search_box.TextColor3 = C.text search_box.TextXAlignment = Enum.TextXAlignment.Left
-    search_box.PlaceholderText = "search modules..." search_box.PlaceholderColor3 = C.text_dim search_box.Text = "" search_box.ClearTextOnFocus = false
-    search_box.Parent = search_wrap
+    search_box.PlaceholderText = "search modules..." search_box.PlaceholderColor3 = C.text_dim search_box.Text = "" search_box.ClearTextOnFocus = false search_box.Parent = search_wrap
 
     local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, -16, 1, -46) scroll.Position = UDim2.fromOffset(8, 44)
-    scroll.BackgroundTransparency = 1 scroll.BorderSizePixel = 0 scroll.ScrollBarThickness = 3
-    scroll.ScrollBarImageColor3 = accent() scroll.CanvasSize = UDim2.new(0, 0, 0, 0) scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    scroll.Parent = content
+    scroll.Size = UDim2.new(1, -16, 1, -46) scroll.Position = UDim2.fromOffset(8, 44) scroll.BackgroundTransparency = 1 scroll.BorderSizePixel = 0 scroll.ScrollBarThickness = 3
+    scroll.ScrollBarImageColor3 = accent() scroll.CanvasSize = UDim2.new(0, 0, 0, 0) scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y scroll.Parent = content
     local sl = Instance.new("UIListLayout") sl.Padding = UDim.new(0, 6) sl.SortOrder = Enum.SortOrder.LayoutOrder sl.Parent = scroll
 
     local statusbar = Instance.new("Frame")
-    statusbar.Size = UDim2.new(1, 0, 0, 26) statusbar.Position = UDim2.new(0, 0, 1, -26)
-    statusbar.BackgroundColor3 = C.panel statusbar.BorderSizePixel = 0 statusbar.Parent = main
+    statusbar.Size = UDim2.new(1, 0, 0, 26) statusbar.Position = UDim2.new(0, 0, 1, -26) statusbar.BackgroundColor3 = C.panel statusbar.BorderSizePixel = 0 statusbar.Parent = main
     local sts = Instance.new("UIStroke") sts.Color = C.stroke sts.Thickness = 1 sts.Parent = statusbar
 
     local status_left = Instance.new("TextLabel")
@@ -398,8 +379,7 @@ local function init_main_gui()
     status_right.TextColor3 = accent() status_right.Text = "ready" status_right.Parent = statusbar
 
     local toast_holder = Instance.new("Frame")
-    toast_holder.Size = UDim2.fromOffset(260, 200) toast_holder.Position = UDim2.new(1, -276, 0, 20)
-    toast_holder.BackgroundTransparency = 1 toast_holder.Parent = mainGui
+    toast_holder.Size = UDim2.fromOffset(260, 200) toast_holder.Position = UDim2.new(1, -276, 0, 20) toast_holder.BackgroundTransparency = 1 toast_holder.Parent = mainGui
     local tl = Instance.new("UIListLayout") tl.Padding = UDim.new(0, 6) tl.SortOrder = Enum.SortOrder.LayoutOrder tl.Parent = toast_holder
 
     local toast_order = 0
@@ -526,7 +506,6 @@ local function init_main_gui()
     local function build_larping_extras()
         local order = 100
         local function mkheader(text) local l = Instance.new("TextLabel") l.Size = UDim2.new(1, -6, 0, 20) l.BackgroundTransparency = 1 l.Font = Enum.Font.Code l.TextSize = 10 l.TextColor3 = accent() l.TextXAlignment = Enum.TextXAlignment.Left l.Text = string.upper(text) l.LayoutOrder = order l.Parent = scroll order += 1 end
-        
         mkheader("limiteds / accessories")
         local row = Instance.new("Frame") row.Size = UDim2.new(1, -6, 0, 60) row.BackgroundColor3 = C.panel row.BorderSizePixel = 0 row.LayoutOrder = order row.Parent = scroll order += 1
         local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 4) rc.Parent = row
@@ -543,7 +522,6 @@ local function init_main_gui()
             if not id then notify("invalid asset id", C.danger) return end
             give_accessory(id)
         end)
-        
         mkheader("quick accessories")
         local quick_row = Instance.new("Frame") quick_row.Size = UDim2.new(1, -6, 0, 36) quick_row.BackgroundTransparency = 1 quick_row.LayoutOrder = order quick_row.Parent = scroll order += 1
         local qgrid = Instance.new("UIGridLayout") qgrid.CellSize = UDim2.new(0.5, -4, 0, 26) qgrid.CellPadding = UDim2.fromOffset(6, 6) qgrid.SortOrder = Enum.SortOrder.LayoutOrder qgrid.Parent = quick_row
@@ -554,7 +532,6 @@ local function init_main_gui()
             local bs = Instance.new("UIStroke") bs.Color = C.stroke bs.Thickness = 1 bs.Parent = b
             b.MouseButton1Click:Connect(function() spawn_primitive_accessory(pr.name, arrToColor(pr.color)) end)
         end
-        
         mkheader("clear")
         local clear_row = Instance.new("Frame") clear_row.Size = UDim2.new(1, -6, 0, 30) clear_row.BackgroundTransparency = 1 clear_row.LayoutOrder = order clear_row.Parent = scroll order += 1
         local clear_btn2 = Instance.new("TextButton") clear_btn2.Size = UDim2.new(1, 0, 0, 28) clear_btn2.BackgroundColor3 = C.panel2 clear_btn2.BorderSizePixel = 0 clear_btn2.Font = Enum.Font.Code clear_btn2.TextSize = 11 clear_btn2.TextColor3 = C.danger clear_btn2.Text = "remove all spawned accessories" clear_btn2.AutoButtonColor = false clear_btn2.Parent = clear_row
@@ -578,13 +555,48 @@ local function init_main_gui()
         simple_row("Menu Key", function(row) local btn = Instance.new("TextButton") btn.Size = UDim2.fromOffset(80, 22) btn.Position = UDim2.new(1, -92, 0.5, -11) btn.BackgroundColor3 = C.panel2 btn.BorderSizePixel = 0 btn.Font = Enum.Font.Code btn.TextSize = 11 btn.TextColor3 = C.text btn.Text = "[" .. config.menu_key .. "]" btn.AutoButtonColor = false btn.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 3) c.Parent = btn local s = Instance.new("UIStroke") s.Color = C.stroke s.Thickness = 1 s.Parent = btn btn.MouseButton1Click:Connect(function() if rebind_mode and rebind_mode.ref then rebind_mode.ref.Text = rebind_mode.__prev or rebind_mode.ref.Text end rebind_mode = {type="menu", ref=btn, __prev=btn.Text} btn.Text = "[...]" end) end)
         simple_row("UI Scale", function(row) local bar = Instance.new("Frame") bar.Size = UDim2.fromOffset(140, 8) bar.Position = UDim2.new(1, -160, 0.5, -4) bar.BackgroundColor3 = C.off bar.BorderSizePixel = 0 bar.Parent = row local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(1,0) bc.Parent = bar local min, max = 0.8, 1.4 local a0 = (config.ui_scale - min) / (max - min) local fill = Instance.new("Frame") fill.Size = UDim2.new(a0, 0, 1, 0) fill.BackgroundColor3 = accent() fill.BorderSizePixel = 0 fill.Parent = bar local fc = Instance.new("UICorner") fc.CornerRadius = UDim.new(1,0) fc.Parent = fill local val = Instance.new("TextLabel") val.BackgroundTransparency = 1 val.Position = UDim2.new(1, -66, 0, 0) val.Size = UDim2.fromOffset(60, 34) val.Font = Enum.Font.Code val.TextSize = 11 val.TextColor3 = accent() val.TextXAlignment = Enum.TextXAlignment.Right val.Text = string.format("%.2f", config.ui_scale) val.Parent = row row.InputBegan:Connect(function(input) if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end local function upd() local mx = UserInputService:GetMouseLocation().X local ap, aw = bar.AbsolutePosition.X, bar.AbsoluteSize.X if aw <= 0 then return end local a = math.clamp((mx - ap) / aw, 0, 1) config.ui_scale = math.floor((min + a * (max - min)) * 100 + 0.5) / 100 val.Text = string.format("%.2f", config.ui_scale) fill.Size = UDim2.new(a, 0, 1, 0) uiScale.Scale = config.ui_scale schedule_save() end upd() local c1 = UserInputService.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then upd() end end) local c2; c2 = UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then c1:Disconnect() c2:Disconnect() end end) end) end)
         simple_row("Notifications", function(row) local tog = Instance.new("TextButton") tog.Size = UDim2.fromOffset(36, 18) tog.Position = UDim2.new(1, -46, 0.5, -9) tog.BackgroundColor3 = config.notifications and accent() or C.off tog.BorderSizePixel = 0 tog.Text = "" tog.AutoButtonColor = false tog.Parent = row local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1,0) c.Parent = tog local knob = Instance.new("Frame") knob.Size = UDim2.fromOffset(14, 14) knob.Position = config.notifications and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) knob.BackgroundColor3 = Color3.new(1,1,1) knob.BorderSizePixel = 0 knob.Parent = tog local kc = Instance.new("UICorner") kc.CornerRadius = UDim.new(1,0) kc.Parent = knob tog.MouseButton1Click:Connect(function() config.notifications = not config.notifications TweenService:Create(tog, TweenInfo.new(0.14), {BackgroundColor3 = config.notifications and accent() or C.off}):Play() local g = config.notifications and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) TweenService:Create(knob, TweenInfo.new(0.14), {Position = g}):Play() schedule_save() end) end)
-        section("theme accent")
+
+        section("theme presets")
+        order += 1
+        local trow = Instance.new("Frame") trow.Size = UDim2.new(1, -6, 0, 34) trow.BackgroundTransparency = 1 trow.LayoutOrder = order trow.Parent = scroll
+        local tgrid = Instance.new("UIGridLayout") tgrid.CellSize = UDim2.new(0.5, -3, 0, 28) tgrid.CellPadding = UDim2.fromOffset(6, 6) tgrid.Parent = trow
+        for name, t in pairs(THEMES) do
+            local b = Instance.new("TextButton")
+            b.BackgroundColor3 = C.panel b.BorderSizePixel = 0 b.Font = Enum.Font.Code b.TextSize = 10
+            b.TextColor3 = arrToColor(t.accent) b.Text = name:gsub("_", " ") b.AutoButtonColor = false b.Parent = trow
+            local bc = Instance.new("UICorner") bc.CornerRadius = UDim.new(0, 3) bc.Parent = b
+            local bs = Instance.new("UIStroke") bs.Color = C.stroke bs.Thickness = 1 bs.Parent = b
+            if name == config.theme then bs.Color = accent() bs.Thickness = 2 end
+            b.MouseButton1Click:Connect(function()
+                config.theme = name
+                config.accent = t.accent
+                apply_theme(name)
+                schedule_save()
+                mainGui:Destroy()
+                init_main_gui()
+            end)
+        end
+
+        section("custom accent")
         order += 1
         local arow = Instance.new("Frame") arow.Size = UDim2.new(1, -6, 0, 40) arow.BackgroundColor3 = C.panel arow.BorderSizePixel = 0 arow.LayoutOrder = order arow.Parent = scroll
         local arc = Instance.new("UICorner") arc.CornerRadius = UDim.new(0, 4) arc.Parent = arow
         local ars = Instance.new("UIStroke") ars.Color = C.stroke ars.Thickness = 1 ars.Parent = arow
         local agrid = Instance.new("UIGridLayout") agrid.CellSize = UDim2.fromOffset(24, 24) agrid.CellPadding = UDim2.fromOffset(6, 6) agrid.Padding = UDim.new(0, 8) agrid.Parent = arow
-        for _, sw in ipairs(SWATCHES) do local s = Instance.new("TextButton") s.BackgroundColor3 = arrToColor(sw) s.BorderSizePixel = 0 s.Text = "" s.AutoButtonColor = false s.Parent = arow local sc = Instance.new("UICorner") sc.CornerRadius = UDim.new(0, 4) sc.Parent = s if sw[1]==config.accent[1] and sw[2]==config.accent[2] and sw[3]==config.accent[3] then local ss = Instance.new("UIStroke") ss.Color = Color3.new(1,1,1) ss.Thickness = 2 ss.Parent = s end s.MouseButton1Click:Connect(function() config.accent = {sw[1], sw[2], sw[3]} apply_accent_everywhere() schedule_save() rebuild_content() notify("accent updated", accent()) end) end
+        for _, sw in ipairs(SWATCHES) do
+            local s = Instance.new("TextButton") s.BackgroundColor3 = arrToColor(sw) s.BorderSizePixel = 0 s.Text = "" s.AutoButtonColor = false s.Parent = arow
+            local sc = Instance.new("UICorner") sc.CornerRadius = UDim.new(0, 4) sc.Parent = s
+            if sw[1]==config.accent[1] and sw[2]==config.accent[2] and sw[3]==config.accent[3] then
+                local ss = Instance.new("UIStroke") ss.Color = Color3.new(1,1,1) ss.Thickness = 2 ss.Parent = s
+            end
+            s.MouseButton1Click:Connect(function()
+                config.accent = {sw[1], sw[2], sw[3]}
+                schedule_save()
+                mainGui:Destroy()
+                init_main_gui()
+            end)
+        end
+
         section("actions")
         order += 1
         local brow = Instance.new("Frame") brow.Size = UDim2.new(1, -6, 0, 34) brow.BackgroundTransparency = 1 brow.LayoutOrder = order brow.Parent = scroll
@@ -593,7 +605,7 @@ local function init_main_gui()
         sb.MouseButton1Click:Connect(function() save_config() notify("saved", C.ok) end)
         local rb = Instance.new("TextButton") rb.Size = UDim2.new(0.5, -3, 1, 0) rb.Position = UDim2.new(0.5, 3, 0, 0) rb.BackgroundColor3 = C.panel rb.BorderSizePixel = 0 rb.Font = Enum.Font.Code rb.TextSize = 11 rb.TextColor3 = C.danger rb.Text = "reset defaults" rb.AutoButtonColor = false rb.Parent = brow
         local rbc = Instance.new("UICorner") rbc.CornerRadius = UDim.new(0, 4) rbc.Parent = rb local rbs = Instance.new("UIStroke") rbs.Color = C.stroke rbs.Thickness = 1 rbs.Parent = rb
-        rb.MouseButton1Click:Connect(function() config.menu_key = "RightShift" config.accent = {0, 200, 130} config.ui_scale = 1 config.notifications = true config.modules = {} local i = 0 for _, d in ipairs(defs) do i += 1 get_state(d.id).key = "F" .. i end uiScale.Scale = 1 apply_accent_everywhere() rebuild_content() save_config() notify("reset", C.danger) end)
+        rb.MouseButton1Click:Connect(function() config.menu_key = "RightShift" config.accent = {200, 50, 50} config.ui_scale = 1 config.notifications = true config.theme = "terminal_red" config.title = "larp client" config.modules = {} local i = 0 for _, d in ipairs(defs) do i += 1 get_state(d.id).key = "F" .. i end apply_theme(config.theme) save_config() mainGui:Destroy() init_main_gui() end)
     end
 
     local function clear_content()
@@ -666,55 +678,30 @@ local function init_main_gui()
         end
     end)
 
-    local function apply_accent_everywhere()
-        logo.BackgroundColor3 = accent() status_right.TextColor3 = accent() scroll.ScrollBarImageColor3 = accent()
-        for _, r in pairs(tab_refs) do if r.bar then r.bar.BackgroundColor3 = accent() end end
-    end
-    apply_accent_everywhere()
     rebuild_content()
 
     function give_accessory(id)
         local ok, model = pcall(function() return InsertService:LoadAsset(id) end)
         if ok and model then
             local char = LocalPlayer.Character
-            if char then
-                local clone = model:Clone()
-                clone.Parent = char
-                model:Destroy()
-                notify("spawned asset " .. id, C.ok)
-            end
-        else
-            notify("failed to load asset", C.danger)
-        end
+            if char then local clone = model:Clone() clone.Parent = char model:Destroy() notify("spawned asset " .. id, C.ok) end
+        else notify("failed to load asset", C.danger) end
     end
 
     function spawn_primitive_accessory(name, color)
         local char = LocalPlayer.Character
         if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        local p = Instance.new("Part")
-        p.Name = "larp_acc_" .. name
-        p.Size = Vector3.new(2, 1, 2)
-        p.Color = color
-        p.Material = Enum.Material.Neon
-        p.CanCollide = false
-        p.Massless = true
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = hrp
-        weld.Part1 = p
-        weld.Parent = p
-        p.CFrame = hrp.CFrame * CFrame.new(0, 3, 0)
-        p.Parent = char
+        local hrp = char:FindFirstChild("HumanoidRootPart") if not hrp then return end
+        local p = Instance.new("Part") p.Name = "larp_acc_" .. name p.Size = Vector3.new(2, 1, 2) p.Color = color p.Material = Enum.Material.Neon p.CanCollide = false p.Massless = true
+        local weld = Instance.new("WeldConstraint") weld.Part0 = hrp weld.Part1 = p weld.Parent = p
+        p.CFrame = hrp.CFrame * CFrame.new(0, 3, 0) p.Parent = char
         notify("spawned " .. name, C.ok)
     end
 
     function clear_spawned_accessories()
         local char = LocalPlayer.Character
         if not char then return end
-        for _, v in ipairs(char:GetChildren()) do
-            if string.find(v.Name, "larp_acc_") then v:Destroy() end
-        end
+        for _, v in ipairs(char:GetChildren()) do if string.find(v.Name, "larp_acc_") then v:Destroy() end end
         notify("cleared accessories", C.text_dim)
     end
 end
@@ -730,15 +717,17 @@ termInput.FocusLost:Connect(function(enterPressed)
     else
         termInput.Text = ""
         termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
-        -- Append error message to the terminal text
         termText.Text = termText.Text .. '\n<font color="#FF6666">Invalid input. Please type y or n.</font>'
+        termScroll.CanvasPosition = Vector2.new(0, termScroll.AbsoluteCanvasSize.Y)
     end
 end)
 
 task.wait(0.1)
 termInput:CaptureFocus()
 
--- Feature Runtimes
+-- ============================================================
+-- FEATURE RUNTIMES
+-- ============================================================
 local function nearest_player(range)
     local char = LocalPlayer.Character local my_hrp = char and char:FindFirstChild("HumanoidRootPart") if not my_hrp then return nil end
     local best, best_d = nil, range
@@ -799,14 +788,29 @@ end
 
 pcall(function() LocalPlayer.Idled:Connect(function() if get_state("antiafk").enabled then local vu = game:GetService("VirtualUser") vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame) task.wait(1) vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame) end end) end)
 
-local target_pos = nil
 local rmb_down = false
 UserInputService.InputBegan:Connect(function(input, gpe) if input.UserInputType == Enum.UserInputType.MouseButton2 then rmb_down = true end end)
 UserInputService.InputEnded:Connect(function(input, gpe) if input.UserInputType == Enum.UserInputType.MouseButton2 then rmb_down = false end end)
 
 local larp_coins = {}
-local larp_trail = nil
 local larp_light = nil
+
+local function setup_coin_trail(coin, col, lifetime)
+    local old = coin:FindFirstChild("larp_trail") if old then old:Destroy() end
+    local a0 = coin:FindFirstChild("larp_a0") or Instance.new("Attachment", coin)
+    a0.Name = "larp_a0" a0.Position = Vector3.new(0, 1, 0)
+    local a1 = coin:FindFirstChild("larp_a1") or Instance.new("Attachment", coin)
+    a1.Name = "larp_a1" a1.Position = Vector3.new(0, -1, 0)
+    local trail = Instance.new("Trail")
+    trail.Name = "larp_trail"
+    trail.Attachment0 = a0
+    trail.Attachment1 = a1
+    trail.Lifetime = lifetime or 15
+    trail.MinLength = 0.1
+    trail.Color = ColorSequence.new(col)
+    trail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+    trail.Parent = coin
+end
 
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character if not char then return end
@@ -851,7 +855,6 @@ RunService.Heartbeat:Connect(function()
 
     st = get_state("healthhud")
     health_lbl.Visible = st.enabled if st.enabled then health_lbl.TextColor3 = accent() health_lbl.Text = string.format("HP: %d / %d", math.floor(hum.Health), math.floor(hum.MaxHealth)) end
-
     st = get_state("fpshud")
     fps_lbl.Visible = st.enabled if st.enabled then fps_lbl.TextColor3 = accent() fps_lbl.Text = "FPS: " .. fps_count end
 
@@ -884,33 +887,47 @@ RunService.Heartbeat:Connect(function()
                 local screen_center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
                 if on_screen and (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude <= (st.fov or 120) then
                     task.wait((st.delay or 50)/1000)
-                    local vu = game:GetService("VirtualUser")
-                    vu:ClickButton1(screen_center)
+                    game:GetService("VirtualUser"):ClickButton1(screen_center)
                 end
             end
         end
     end
 
+    -- COIN AURA
     st = get_state("coinaura")
+    local trail_st = get_state("cointrail")
     if st.enabled then
         local count = st.count or 5
         local radius = st.radius or 6
         local speed = st.speed or 10
         local height = st.height or 3
         local col = arrToColor(st.color or {60,180,255})
+        local trail_col = arrToColor(trail_st.color or {60,180,255})
         local time = tick() * speed
+        -- grow pool
         while #larp_coins < count do
-            local c = Instance.new("Part") c.Shape = Enum.PartType.Cylinder c.Size = Vector3.new(0.2, 2, 2) c.Color = col c.Material = Enum.Material.Neon c.Anchored = true c.CanCollide = false c.Parent = workspace
+            local c = Instance.new("Part") c.Name = "larp_coin" c.Shape = Enum.PartType.Cylinder c.Size = Vector3.new(0.2, 2, 2) c.Color = col c.Material = Enum.Material.Neon c.Anchored = true c.CanCollide = false c.Parent = workspace
             table.insert(larp_coins, c)
         end
         for i, c in ipairs(larp_coins) do
             if i <= count then
-                c.Transparency = 0
+                c.Transparency = 0 c.Color = col
                 local angle = time + (i * math.pi * 2 / count)
                 local offset = Vector3.new(math.cos(angle) * radius, height, math.sin(angle) * radius)
                 local pos = hrp.Position + offset
                 local look = CFrame.lookAt(pos, cam.CFrame.Position)
                 c.CFrame = look * CFrame.Angles(math.pi/2, 0, 0)
+                -- trail management
+                if trail_st.enabled then
+                    if not c:FindFirstChild("larp_trail") then setup_coin_trail(c, trail_col, trail_st.lifetime) end
+                    local tr = c:FindFirstChild("larp_trail")
+                    if tr then
+                        tr.Lifetime = trail_st.lifetime or 15
+                        tr.Color = ColorSequence.new(trail_col)
+                    end
+                else
+                    local tr = c:FindFirstChild("larp_trail") if tr then tr:Destroy() end
+                end
             else
                 c.Transparency = 1
             end
@@ -920,36 +937,11 @@ RunService.Heartbeat:Connect(function()
         larp_coins = {}
     end
 
-    st = get_state("playertrail")
-    if st.enabled and not larp_trail then
-        larp_trail = Instance.new("Trail")
-        larp_trail.Attachment0 = Instance.new("Attachment", hrp)
-        larp_trail.Attachment1 = Instance.new("Attachment", hrp)
-        larp_trail.Attachment0.Position = Vector3.new(0, 1, 0)
-        larp_trail.Attachment1.Position = Vector3.new(0, -1, 0)
-        larp_trail.Lifetime = st.lifetime or 15
-        larp_trail.Color = ColorSequence.new(arrToColor(st.color or {60,180,255}))
-        larp_trail.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})
-        larp_trail.Parent = hrp
-    elseif not st.enabled and larp_trail then
-        larp_trail:Destroy()
-        larp_trail = nil
-    end
-    if larp_trail then
-        larp_trail.Lifetime = st.lifetime or 15
-        larp_trail.Color = ColorSequence.new(arrToColor(st.color or {60,180,255}))
-    end
-
     st = get_state("glow")
     if st.enabled and not larp_light then
-        larp_light = Instance.new("PointLight")
-        larp_light.Color = arrToColor({60,180,255})
-        larp_light.Range = 20
-        larp_light.Brightness = st.brightness or 3
-        larp_light.Parent = hrp
+        larp_light = Instance.new("PointLight") larp_light.Color = arrToColor({200, 50, 50}) larp_light.Range = 20 larp_light.Brightness = st.brightness or 3 larp_light.Parent = hrp
     elseif not st.enabled and larp_light then
-        larp_light:Destroy()
-        larp_light = nil
+        larp_light:Destroy() larp_light = nil
     end
     if larp_light then larp_light.Brightness = st.brightness or 3 end
 end)
@@ -958,7 +950,7 @@ task.spawn(function()
     while task.wait(0.15) do
         if get_state("autoarrest").enabled then local target = nearest_player(get_state("autoarrest").range or 12) if target then local char = LocalPlayer.Character if char then for _, tool in ipairs(char:GetChildren()) do if tool:IsA("Tool") and string.find(string.lower(tool.Name), "cuff") then pcall(function() tool:Activate() end) break end end end end end
         if get_state("autopocket").enabled then local target = nearest_player(get_state("autopocket").range or 10) if target then local char = LocalPlayer.Character if char then for _, tool in ipairs(char:GetChildren()) do if tool:IsA("Tool") and (string.find(string.lower(tool.Name), "pick") or string.find(string.lower(tool.Name), "steal")) then pcall(function() tool:Activate() end) break end end end end end
-        if get_state("autoclicker").enabled then local vu = game:GetService("VirtualUser") vu:ClickButton1(UserInputService:GetMouseLocation()) task.wait(1 / (get_state("autoclicker").cps or 15)) end
+        if get_state("autoclicker").enabled then game:GetService("VirtualUser"):ClickButton1(UserInputService:GetMouseLocation()) task.wait(1 / (get_state("autoclicker").cps or 15)) end
         if get_state("hitbox").enabled then
             local size = get_state("hitbox").size or 6
             for _, p in ipairs(Players:GetPlayers()) do
@@ -978,4 +970,4 @@ task.spawn(function()
     end
 end)
 
-LocalPlayer.CharacterRemoving:Connect(function() stop_fly() clear_esp() for _, c in ipairs(larp_coins) do c:Destroy() end larp_coins = {} if larp_trail then larp_trail:Destroy() larp_trail = nil end if larp_light then larp_light:Destroy() larp_light = nil end end)
+LocalPlayer.CharacterRemoving:Connect(function() stop_fly() clear_esp() for _, c in ipairs(larp_coins) do c:Destroy() end larp_coins = {} if larp_light then larp_light:Destroy() larp_light = nil end end)
